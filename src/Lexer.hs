@@ -40,9 +40,6 @@ data TokenType
 
 data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq)
 
-char :: State String Char
-char = state $ \s -> let (c : s') = s in (c, s')
-
 skipWhitespace :: String -> String
 skipWhitespace = dropWhile isSpace
 
@@ -87,8 +84,8 @@ tokenFromChar '>' = Just $ Token GreaterThan ">"
 tokenFromChar _ = Nothing
 
 peek :: Char -> String -> Maybe Token
-peek '=' ('=' : _) = Just (Token Equal "==")
-peek '!' ('=' : _) = Just (Token NotEqual "!=")
+peek '=' ('=' : _) = Just $ Token Equal "=="
+peek '!' ('=' : _) = Just $ Token NotEqual "!="
 peek _ _ = Nothing
 
 spanningToken :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
