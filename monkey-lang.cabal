@@ -22,17 +22,28 @@ maintainer:         sebastian.wiegandt@gmail.com
 extra-source-files: CHANGELOG.md
 
 library
-    exposed-modules:  MyLib
+    exposed-modules:  Lexer
 
     -- Modules included in this library but not exported.
     -- other-modules:
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.16.4.0
+    build-depends:    base ^>=4.16.4.0,
+                      mtl ==2.3.1
     hs-source-dirs:   src
     default-language: Haskell2010
 
+test-suite test-lexer
+    type: exitcode-stdio-1.0
+    main-is: LexerSpec.hs
+    build-depends:
+        base ^>=4.16.4.0,
+        HUnit ==1.6.2.0,
+        monkey-lang
+    hs-source-dirs: test
+    default-language: Haskell2010
+    
 executable monkey-lang
     main-is:          Main.hs
 
@@ -43,6 +54,7 @@ executable monkey-lang
     -- other-extensions:
     build-depends:
         base ^>=4.16.4.0,
+        mtl ==2.3.1,
         monkey-lang
 
     hs-source-dirs:   app

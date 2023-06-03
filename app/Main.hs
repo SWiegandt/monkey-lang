@@ -1,8 +1,9 @@
 module Main where
 
-import qualified MyLib (someFunc)
+import Control.Monad.State (evalState)
+import Lexer
 
 main :: IO ()
 main = do
-  putStrLn "Hello, Haskell!"
-  MyLib.someFunc
+  let str = ";=)"
+  print $ runLexer str
