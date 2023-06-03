@@ -1,6 +1,5 @@
 import Lexer (Token (Token), TokenType (..), runLexer)
 import Test.HUnit
-import Prelude hiding (EQ, False, GT, Int, LT, True)
 
 testLexer =
   let input =
@@ -69,34 +68,34 @@ testLexer =
           Token Int "5",
           Token Semicolon ";",
           Token Int "5",
-          Token LT "<",
+          Token LessThan "<",
           Token Int "10",
-          Token GT ">",
+          Token GreaterThan ">",
           Token Int "5",
           Token Semicolon ";",
           Token If "if",
           Token LParen "(",
           Token Int "5",
-          Token LT "<",
+          Token LessThan "<",
           Token Int "10",
           Token RParen ")",
           Token LBrace "{",
           Token Return "return",
-          Token True "true",
+          Token TrueT "true",
           Token Semicolon ";",
           Token RBrace "}",
           Token Else "else",
           Token LBrace "{",
           Token Return "return",
-          Token False "false",
+          Token FalseT "false",
           Token Semicolon ";",
           Token RBrace "}",
           Token Int "10",
-          Token EQ "==",
+          Token Equal "==",
           Token Int "10",
           Token Semicolon ";",
           Token Int "10",
-          Token NEQ "!=",
+          Token NotEqual "!=",
           Token Int "9",
           Token Semicolon ";",
           Token EOF ""

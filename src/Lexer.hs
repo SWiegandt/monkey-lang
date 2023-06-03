@@ -3,11 +3,10 @@
 module Lexer where
 
 import Control.Applicative ((<|>))
-import Control.Monad.State (MonadState (get, put, state), State, evalState)
+import Control.Monad.State (MonadState (get, put, state), State, evalState, modify)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.Maybe (fromMaybe)
-import Prelude hiding (EQ, False, GT, LT, True)
 
 data TokenType
   = Illegal
@@ -20,10 +19,10 @@ data TokenType
   | Bang
   | Slash
   | Asterisk
-  | LT
-  | GT
-  | EQ
-  | NEQ
+  | LessThan
+  | GreaterThan
+  | Equal
+  | NotEqual
   | Comma
   | Semicolon
   | LParen
@@ -32,8 +31,8 @@ data TokenType
   | RBrace
   | Function
   | Let
-  | True
-  | False
+  | TrueT
+  | FalseT
   | If
   | Else
   | Return
@@ -44,12 +43,12 @@ data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq)
 char :: State String Char
 char = state $ \s -> let (c : s') = s in (c, s')
 
-skipWhitespace :: State String ()
-skipWhitespace = state $ \s -> ((), dropWhile isSpace s)
+skipWhitespace :: String -> String
+skipWhitespace = dropWhile isSpace
 
 nextToken :: State String Token
 nextToken = do
-  skipWhitespace
+  modify skipWhitespace
   s <- get
   case s of
     [] -> return $ Token EOF ""
@@ -83,13 +82,13 @@ tokenFromChar '!' = Just $ Token Bang "!"
 tokenFromChar '-' = Just $ Token Minus "-"
 tokenFromChar '/' = Just $ Token Slash "/"
 tokenFromChar '*' = Just $ Token Asterisk "*"
-tokenFromChar '<' = Just $ Token LT "<"
-tokenFromChar '>' = Just $ Token GT ">"
+tokenFromChar '<' = Just $ Token LessThan "<"
+tokenFromChar '>' = Just $ Token GreaterThan ">"
 tokenFromChar _ = Nothing
 
 peek :: Char -> String -> Maybe Token
-peek '=' ('=' : _) = Just (Token EQ "==")
-peek '!' ('=' : _) = Just (Token NEQ "!=")
+peek '=' ('=' : _) = Just (Token Equal "==")
+peek '!' ('=' : _) = Just (Token NotEqual "!=")
 peek _ _ = Nothing
 
 spanningToken :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
@@ -106,8 +105,8 @@ number c s = first (Token Int) <$> spanningToken isDigit c s
 identifierToken :: String -> Token
 identifierToken "let" = Token Let "let"
 identifierToken "fn" = Token Function "fn"
-identifierToken "true" = Token True "true"
-identifierToken "false" = Token False "false"
+identifierToken "true" = Token TrueT "true"
+identifierToken "false" = Token FalseT "false"
 identifierToken "if" = Token If "if"
 identifierToken "else" = Token Else "else"
 identifierToken "return" = Token Return "return"
