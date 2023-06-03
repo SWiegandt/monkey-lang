@@ -9,34 +9,34 @@ import Data.Char (isAlpha, isDigit, isSpace)
 import Data.Maybe (fromMaybe)
 
 data TokenType
-  = Illegal
-  | EOF
-  | Ident
-  | Int
-  | Assign
-  | Plus
-  | Minus
-  | Bang
-  | Slash
-  | Asterisk
-  | LessThan
-  | GreaterThan
-  | Equal
-  | NotEqual
-  | Comma
-  | Semicolon
-  | LParen
-  | RParen
-  | LBrace
-  | RBrace
-  | Function
-  | Let
-  | TrueT
-  | FalseT
-  | If
-  | Else
-  | Return
-  deriving (Show, Eq)
+    = Illegal
+    | EOF
+    | Ident
+    | Int
+    | Assign
+    | Plus
+    | Minus
+    | Bang
+    | Slash
+    | Asterisk
+    | LessThan
+    | GreaterThan
+    | Equal
+    | NotEqual
+    | Comma
+    | Semicolon
+    | LParen
+    | RParen
+    | LBrace
+    | RBrace
+    | Function
+    | Let
+    | TrueT
+    | FalseT
+    | If
+    | Else
+    | Return
+    deriving (Show, Eq)
 
 data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq)
 
@@ -45,26 +45,22 @@ skipWhitespace = dropWhile isSpace
 
 nextToken :: State String Token
 nextToken = do
-  modify skipWhitespace
-  s <- get
-  case s of
-    [] -> return $ Token EOF ""
-    (c : s') -> do
-      let peekToken = (,tail s') <$> peek c s'
-      let charToken = (,s') <$> tokenFromChar c
-      let identToken = first identifierToken <$> identifier c s'
-      let numToken = number c s'
+    modify skipWhitespace
+    s <- get
+    case s of
+        [] -> return $ Token EOF ""
+        (c : s') -> do
+            let peekToken = (,tail s') <$> peek c s'
+                charToken = (,s') <$> tokenFromChar c
+                identToken = first identifierToken <$> identifier c s'
+                numToken = number c s'
 
-      let (token, rest) =
-            fromMaybe
-              (Token Illegal [c], s')
-              ( peekToken
-                  <|> charToken
-                  <|> identToken
-                  <|> numToken
-              )
-      put rest
-      return token
+                (token, rest) =
+                    fromMaybe
+                        (Token Illegal [c], s')
+                        (peekToken <|> charToken <|> identToken <|> numToken)
+            put rest
+            return token
 
 tokenFromChar :: Char -> Maybe Token
 tokenFromChar ';' = Just $ Token Semicolon ";"
@@ -90,8 +86,8 @@ peek _ _ = Nothing
 
 spanningToken :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
 spanningToken valid c s
-  | valid c = let (matched, rest) = span valid s in Just (c : matched, rest)
-  | otherwise = Nothing
+    | valid c = let (matched, rest) = span valid s in Just (c : matched, rest)
+    | otherwise = Nothing
 
 identifier :: Char -> String -> Maybe (String, String)
 identifier = spanningToken (\c -> isAlpha c || c == '_')
@@ -111,10 +107,10 @@ identifierToken s = Token Ident s
 
 untilEOF :: State String [Token]
 untilEOF = do
-  token <- nextToken
-  case ttype token of
-    EOF -> return [token]
-    _ -> (token :) <$> untilEOF
+    token <- nextToken
+    case ttype token of
+        EOF -> return [token]
+        _ -> (token :) <$> untilEOF
 
 runLexer :: String -> [Token]
 runLexer = evalState untilEOF

@@ -5,5 +5,5 @@ import Lexer
 
 main :: IO ()
 main = do
-  let str = ";=)"
-  print $ runLexer str
+    let str = ";=)"
+    print $ runLexer str
