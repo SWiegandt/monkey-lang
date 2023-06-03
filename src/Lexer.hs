@@ -1,6 +1,6 @@
 {-# LANGUAGE TupleSections #-}
 
-module Lexer where
+module Lexer (Token (..), TokenType (..), runLexer) where
 
 import Control.Applicative ((<|>))
 import Control.Monad.State (MonadState (get, put, state), State, evalState, modify)
@@ -50,60 +50,65 @@ nextToken = do
     case s of
         [] -> return $ Token EOF ""
         (c : s') -> do
-            let peekToken = (,tail s') <$> peek c s'
-                charToken = (,s') <$> tokenFromChar c
-                identToken = first identifierToken <$> identifier c s'
-                numToken = number c s'
-
+            let peekT = (,tail s') <$> peekToken c s'
+                charT = (,s') <$> charToken c
+                stringT = first stringToken <$> identifier c s'
+                numberT = numberToken c s'
                 (token, rest) =
                     fromMaybe
                         (Token Illegal [c], s')
-                        (peekToken <|> charToken <|> identToken <|> numToken)
+                        (peekT <|> charT <|> stringT <|> numberT)
             put rest
             return token
 
-tokenFromChar :: Char -> Maybe Token
-tokenFromChar ';' = Just $ Token Semicolon ";"
-tokenFromChar '(' = Just $ Token LParen "("
-tokenFromChar ')' = Just $ Token RParen ")"
-tokenFromChar ',' = Just $ Token Comma ","
-tokenFromChar '+' = Just $ Token Plus "+"
-tokenFromChar '{' = Just $ Token LBrace "{"
-tokenFromChar '}' = Just $ Token RBrace "}"
-tokenFromChar '=' = Just $ Token Assign "="
-tokenFromChar '!' = Just $ Token Bang "!"
-tokenFromChar '-' = Just $ Token Minus "-"
-tokenFromChar '/' = Just $ Token Slash "/"
-tokenFromChar '*' = Just $ Token Asterisk "*"
-tokenFromChar '<' = Just $ Token LessThan "<"
-tokenFromChar '>' = Just $ Token GreaterThan ">"
-tokenFromChar _ = Nothing
+charType :: Char -> Maybe TokenType
+charType ';' = Just Semicolon
+charType '(' = Just LParen
+charType ')' = Just RParen
+charType ',' = Just Comma
+charType '+' = Just Plus
+charType '{' = Just LBrace
+charType '}' = Just RBrace
+charType '=' = Just Assign
+charType '!' = Just Bang
+charType '-' = Just Minus
+charType '/' = Just Slash
+charType '*' = Just Asterisk
+charType '<' = Just LessThan
+charType '>' = Just GreaterThan
+charType _ = Nothing
 
-peek :: Char -> String -> Maybe Token
-peek '=' ('=' : _) = Just $ Token Equal "=="
-peek '!' ('=' : _) = Just $ Token NotEqual "!="
-peek _ _ = Nothing
+charToken :: Char -> Maybe Token
+charToken c = (`Token` [c]) <$> charType c
 
-spanningToken :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
-spanningToken valid c s
+peekToken :: Char -> String -> Maybe Token
+peekToken '=' ('=' : _) = Just $ Token Equal "=="
+peekToken '!' ('=' : _) = Just $ Token NotEqual "!="
+peekToken _ _ = Nothing
+
+spanningMatcher :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
+spanningMatcher valid c s
     | valid c = let (matched, rest) = span valid s in Just (c : matched, rest)
     | otherwise = Nothing
 
 identifier :: Char -> String -> Maybe (String, String)
-identifier = spanningToken (\c -> isAlpha c || c == '_')
+identifier = spanningMatcher (\c -> isAlpha c || c == '_')
 
-number :: Char -> String -> Maybe (Token, String)
-number c s = first (Token Int) <$> spanningToken isDigit c s
+numberToken :: Char -> String -> Maybe (Token, String)
+numberToken c s = first (Token Int) <$> spanningMatcher isDigit c s
 
-identifierToken :: String -> Token
-identifierToken "let" = Token Let "let"
-identifierToken "fn" = Token Function "fn"
-identifierToken "true" = Token TrueT "true"
-identifierToken "false" = Token FalseT "false"
-identifierToken "if" = Token If "if"
-identifierToken "else" = Token Else "else"
-identifierToken "return" = Token Return "return"
-identifierToken s = Token Ident s
+keywordType :: String -> Maybe TokenType
+keywordType "let" = Just Let
+keywordType "fn" = Just Function
+keywordType "true" = Just TrueT
+keywordType "false" = Just FalseT
+keywordType "if" = Just If
+keywordType "else" = Just Else
+keywordType "return" = Just Return
+keywordType _ = Nothing
+
+stringToken :: String -> Token
+stringToken s = maybe (Token Ident s) (`Token` s) (keywordType s)
 
 untilEOF :: State String [Token]
 untilEOF = do
