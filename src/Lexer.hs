@@ -1,54 +1,23 @@
 {-# LANGUAGE TupleSections #-}
 
-module Lexer (Token (..), TokenType (..), runLexer) where
+module Lexer (runLexer) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.State (MonadState (get, put, state), State, evalState, modify)
+import Control.Monad.State (MonadState (get, put), State, evalState, modify)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.Maybe (fromMaybe)
-
-data TokenType
-    = Illegal
-    | EOF
-    | Ident
-    | Int
-    | Assign
-    | Plus
-    | Minus
-    | Bang
-    | Slash
-    | Asterisk
-    | LessThan
-    | GreaterThan
-    | Equal
-    | NotEqual
-    | Comma
-    | Semicolon
-    | LParen
-    | RParen
-    | LBrace
-    | RBrace
-    | Function
-    | Let
-    | TrueT
-    | FalseT
-    | If
-    | Else
-    | Return
-    deriving (Show, Eq)
-
-data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq)
+import qualified Tokens as T
 
 skipWhitespace :: String -> String
 skipWhitespace = dropWhile isSpace
 
-nextToken :: State String Token
+nextToken :: State String T.Token
 nextToken = do
     modify skipWhitespace
     s <- get
     case s of
-        [] -> return $ Token EOF ""
+        [] -> return $ T.Token T.EOF ""
         (c : s') -> do
             let peekT = (,tail s') <$> peekToken c s'
                 charT = (,s') <$> charToken c
@@ -56,34 +25,34 @@ nextToken = do
                 numberT = numberToken c s'
                 (token, rest) =
                     fromMaybe
-                        (Token Illegal [c], s')
+                        (T.Token T.Illegal [c], s')
                         (peekT <|> charT <|> stringT <|> numberT)
             put rest
             return token
 
-charType :: Char -> Maybe TokenType
-charType ';' = Just Semicolon
-charType '(' = Just LParen
-charType ')' = Just RParen
-charType ',' = Just Comma
-charType '+' = Just Plus
-charType '{' = Just LBrace
-charType '}' = Just RBrace
-charType '=' = Just Assign
-charType '!' = Just Bang
-charType '-' = Just Minus
-charType '/' = Just Slash
-charType '*' = Just Asterisk
-charType '<' = Just LessThan
-charType '>' = Just GreaterThan
+charType :: Char -> Maybe T.TokenType
+charType ';' = Just T.Semicolon
+charType '(' = Just T.LParen
+charType ')' = Just T.RParen
+charType ',' = Just T.Comma
+charType '+' = Just T.Plus
+charType '{' = Just T.LBrace
+charType '}' = Just T.RBrace
+charType '=' = Just T.Assign
+charType '!' = Just T.Bang
+charType '-' = Just T.Minus
+charType '/' = Just T.Slash
+charType '*' = Just T.Asterisk
+charType '<' = Just T.LessThan
+charType '>' = Just T.GreaterThan
 charType _ = Nothing
 
-charToken :: Char -> Maybe Token
-charToken c = (`Token` [c]) <$> charType c
+charToken :: Char -> Maybe T.Token
+charToken c = (`T.Token` [c]) <$> charType c
 
-peekToken :: Char -> String -> Maybe Token
-peekToken '=' ('=' : _) = Just $ Token Equal "=="
-peekToken '!' ('=' : _) = Just $ Token NotEqual "!="
+peekToken :: Char -> String -> Maybe T.Token
+peekToken '=' ('=' : _) = Just $ T.Token T.Equal "=="
+peekToken '!' ('=' : _) = Just $ T.Token T.NotEqual "!="
 peekToken _ _ = Nothing
 
 spanningMatcher :: (Char -> Bool) -> Char -> String -> Maybe (String, String)
@@ -94,28 +63,28 @@ spanningMatcher valid c s
 identifier :: Char -> String -> Maybe (String, String)
 identifier = spanningMatcher (\c -> isAlpha c || c == '_')
 
-numberToken :: Char -> String -> Maybe (Token, String)
-numberToken c s = first (Token Int) <$> spanningMatcher isDigit c s
+numberToken :: Char -> String -> Maybe (T.Token, String)
+numberToken c s = first (T.Token T.Int) <$> spanningMatcher isDigit c s
 
-keywordType :: String -> Maybe TokenType
-keywordType "let" = Just Let
-keywordType "fn" = Just Function
-keywordType "true" = Just TrueT
-keywordType "false" = Just FalseT
-keywordType "if" = Just If
-keywordType "else" = Just Else
-keywordType "return" = Just Return
+keywordType :: String -> Maybe T.TokenType
+keywordType "let" = Just T.Let
+keywordType "fn" = Just T.Function
+keywordType "true" = Just T.TrueT
+keywordType "false" = Just T.FalseT
+keywordType "if" = Just T.If
+keywordType "else" = Just T.Else
+keywordType "return" = Just T.Return
 keywordType _ = Nothing
 
-stringToken :: String -> Token
-stringToken s = maybe (Token Ident s) (`Token` s) (keywordType s)
+stringToken :: String -> T.Token
+stringToken s = maybe (T.Token T.Ident s) (`T.Token` s) (keywordType s)
 
-untilEOF :: State String [Token]
+untilEOF :: State String [T.Token]
 untilEOF = do
     token <- nextToken
-    case ttype token of
-        EOF -> return [token]
+    case T.ttype token of
+        T.EOF -> return [token]
         _ -> (token :) <$> untilEOF
 
-runLexer :: String -> [Token]
+runLexer :: String -> [T.Token]
 runLexer = evalState untilEOF

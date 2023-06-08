@@ -1,15 +1,16 @@
 module Main where
 
-import Lexer
+import Lexer (runLexer)
 import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
+import qualified Tokens as T
 
 repl :: IO ()
 repl = do
-    putStr "> " >> hFlush stdout
+    putStr ">> " >> hFlush stdout
     line <- getLine
-    mapM_ print . filter (\t -> ttype t /= EOF) $ runLexer line
+    mapM_ print . filter (\t -> T.ttype t /= T.EOF) $ runLexer line
     repl
 
 main :: IO ()
