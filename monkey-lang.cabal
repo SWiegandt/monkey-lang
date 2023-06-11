@@ -22,50 +22,56 @@ maintainer:         sebastian.wiegandt@gmail.com
 extra-source-files: CHANGELOG.md
 
 library
-    exposed-modules:  Lexer, Parser, Tokens, Nodes
+  exposed-modules:
+    Lexer
+    Nodes
+    Parser
+    Tokens
 
-    -- Modules included in this library but not exported.
-    -- other-modules:
+  -- Modules included in this library but not exported.
+  -- other-modules:
 
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:    base ^>=4.16.4.0,
-                      mtl ==2.3.1,
-                      transformers ==0.6.1.0
-    hs-source-dirs:   src
-    default-language: Haskell2010
-    ghc-options: 
-        -fwarn-incomplete-patterns,
-        -fwarn-unused-imports
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:
+  build-depends:
+    , base          ^>=4.16.4.0
+    , mtl           ==2.3.1
+    , transformers  ==0.6.1.0
+
+  hs-source-dirs:   src
+  default-language: Haskell2010
+  ghc-options:      "-fwarn-incomplete-patterns," -fwarn-unused-imports
 
 test-suite test-monkey
-    type: exitcode-stdio-1.0
-    main-is: Spec.hs
-    build-depends:
-        base ^>=4.16.4.0,
-        hspec ==2.11.1,
-        mtl ==2.3.1,
-        transformers ==0.6.1.0,
-        monkey-lang
-    hs-source-dirs: test
-    other-modules:
-        LexerSpec,
-        ParserSpec
-    default-language: Haskell2010
-    build-tool-depends: hspec-discover:hspec-discover ==2.11.1
+  type:               exitcode-stdio-1.0
+  main-is:            Spec.hs
+  build-depends:
+    , base          ^>=4.16.4.0
+    , hspec         ==2.11.1
+    , monkey-lang
+    , mtl           ==2.3.1
+    , transformers  ==0.6.1.0
+
+  hs-source-dirs:     test
+  other-modules:
+    LexerSpec
+    ParserSpec
+
+  default-language:   Haskell2010
+  build-tool-depends: hspec-discover:hspec-discover ==2.11.1
 
 executable monkey-lang
-    main-is:          Main.hs
+  main-is:          Main.hs
 
-    -- Modules included in this executable, other than Main.
-    -- other-modules:
+  -- Modules included in this executable, other than Main.
+  -- other-modules:
 
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-    build-depends:
-        base ^>=4.16.4.0,
-        mtl ==2.3.1,
-        monkey-lang
+  -- LANGUAGE extensions used by modules in this package.
+  -- other-extensions:
+  build-depends:
+    , base         ^>=4.16.4.0
+    , monkey-lang
+    , mtl          ==2.3.1
 
-    hs-source-dirs:   app
-    default-language: Haskell2010
+  hs-source-dirs:   app
+  default-language: Haskell2010
