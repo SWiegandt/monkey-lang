@@ -2,10 +2,10 @@ module Parser where
 
 import Control.Monad (void)
 import Control.Monad.State (MonadState (get, put), MonadTrans (lift), State, evalState, gets)
-import Control.Monad.Trans.Maybe (MaybeT (MaybeT, runMaybeT))
+import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
 import Control.Monad.Trans.Writer (WriterT (runWriterT), tell)
 import Data.Bifunctor (Bifunctor (first))
-import Data.Maybe (listToMaybe)
+import Data.Maybe (fromMaybe, listToMaybe)
 import qualified Nodes as N
 import Text.Printf (printf)
 import Text.Read (readMaybe)
@@ -28,8 +28,25 @@ data Precedence
     | Call
     deriving (Eq, Ord)
 
+precedence :: T.TokenType -> Precedence
+precedence T.Equal = Equals
+precedence T.NotEqual = Equals
+precedence T.LessThan = LessGreater
+precedence T.GreaterThan = LessGreater
+precedence T.Plus = Sum
+precedence T.Minus = Sum
+precedence T.Slash = Product
+precedence T.Asterisk = Product
+precedence _ = Lowest
+
 peek :: Parser T.Token
 peek = gets (head . snd)
+
+tokenPrecedence :: T.Token -> Precedence
+tokenPrecedence = precedence . T.ttype
+
+peekPrecedence :: Parser Precedence
+peekPrecedence = tokenPrecedence <$> peek
 
 currentToken :: Parser T.Token
 currentToken = gets fst
@@ -55,7 +72,7 @@ expectToken tt = do
         then lift nextToken
         else do
             lift $ tell [printf "expected next token to be %s, got %s instead" (show tt) (show . T.ttype $ next)]
-            MaybeT $ return Nothing
+            hoistMaybe Nothing
 
 eatUntil :: T.TokenType -> Parser ()
 eatUntil tt = do
@@ -88,32 +105,92 @@ parseExpressionStmt current = do
     return (N.ExpressionStmt current expr)
 
 parseExpression :: T.Token -> Precedence -> MaybeT Parser N.Expression
-parseExpression current precedence = prefixParse current
+parseExpression current precedence = do
+    lhs <- parsePrefix current
+    parseInfix lhs precedence
 
-prefixParse :: T.Token -> MaybeT Parser N.Expression
-prefixParse current
-    | T.ttype current == T.Ident =
-        return $ N.IdentifierExpr (N.Identifier current (T.literal current))
-    | T.ttype current == T.Int = do
-        case readMaybe $ T.literal current of
-            Nothing -> do
-                lift $ tell [printf "could not parse %s as integer" (T.literal current)]
-                MaybeT $ return Nothing
-            Just value -> return $ N.IntegerLiteralExpr current value
-    | otherwise = MaybeT $ return Nothing
+parsePrefix :: T.Token -> MaybeT Parser N.Expression
+parsePrefix current = case T.ttype current of
+    T.Ident -> return $ N.IdentifierExpr (N.Identifier current (T.literal current))
+    T.Int -> case readMaybe $ T.literal current of
+        Nothing -> do
+            lift $ tell [printf "could not parse %s as integer" (T.literal current)]
+            hoistMaybe Nothing
+        Just value -> return $ N.IntegerLiteralExpr current value
+    T.True -> return $ N.BooleanExpr current True
+    T.False -> return $ N.BooleanExpr current False
+    T.Bang -> parsePrefixExpression current
+    T.Minus -> parsePrefixExpression current
+    T.LParen -> parseGroupedExpression
+    T.If -> parseIfExpression current
+    _ -> do
+        lift . tell $ [printf "no prefix parse function for %s found" $ show (T.ttype current)]
+        hoistMaybe Nothing
 
-infixParse :: T.TokenType -> N.Expression -> MaybeT Parser N.Expression
-infixParse tt lhs = MaybeT $ return Nothing
+parsePrefixExpression :: T.Token -> MaybeT Parser N.Expression
+parsePrefixExpression current = do
+    next <- lift nextToken
+    rhs <- parseExpression next Prefix
+    return $ N.PrefixExpression current (T.literal current) rhs
 
-untilEOF :: Parser [N.Statement]
-untilEOF = do
+parseGroupedExpression :: MaybeT Parser N.Expression
+parseGroupedExpression = do
+    current <- lift nextToken
+    expr <- parseExpression current Lowest
+    expectToken T.RParen
+    return expr
+
+parseIfExpression :: T.Token -> MaybeT Parser N.Expression
+parseIfExpression current = do
+    expectToken T.LParen
+    next <- lift nextToken
+    condition <- parseExpression next Lowest
+
+    expectToken T.RParen
+    expectToken T.LBrace
+    consequence <- parseBlock
+
+    peekToken <- lift $ gets (listToMaybe . snd)
+    case T.ttype <$> peekToken of
+        Just T.Else -> do
+            lift nextToken
+            expectToken T.LBrace
+            N.IfExpression current condition consequence . Just <$> parseBlock
+        _ -> return $ N.IfExpression current condition consequence Nothing
+
+parseBlock :: MaybeT Parser N.Block
+parseBlock = N.Block <$> lift (untilToken [T.RBrace, T.EOF])
+
+parseInfix :: N.Expression -> Precedence -> MaybeT Parser N.Expression
+parseInfix lhs precedence = do
+    peekedToken <- lift peek
+    peekedPrecedence <- lift peekPrecedence
+    if T.ttype peekedToken == T.Semicolon || precedence >= peekedPrecedence
+        then return lhs
+        else do
+            current <- lift nextToken
+            lhs <- parseInfixExpression current lhs
+            parseInfix lhs precedence
+
+parseInfixExpression :: T.Token -> N.Expression -> MaybeT Parser N.Expression
+parseInfixExpression current lhs =
+    if T.ttype current `notElem` [T.Plus, T.Minus, T.Slash, T.Asterisk, T.Equal, T.NotEqual, T.LessThan, T.GreaterThan]
+        then return lhs
+        else do
+            let precedence = tokenPrecedence current
+            next <- lift nextToken
+            rhs <- parseExpression next precedence
+            return $ N.InfixExpression current lhs (T.literal current) rhs
+
+untilToken :: [T.TokenType] -> Parser [N.Statement]
+untilToken ttypes = do
     current <- nextToken
-    case current of
-        T.Token T.EOF _ -> return []
-        _ -> do
+    if T.ttype current `elem` ttypes
+        then return []
+        else do
             stmt <- nextStatement
-            maybe untilEOF (\s -> (s :) <$> untilEOF) stmt
+            (fromMaybe N.InvalidStatement stmt :) <$> untilToken ttypes
 
 runParser :: [T.Token] -> (Program, [String])
 runParser [] = (Program [], [])
-runParser ts = first Program . (`evalState` (undefined, ts)) . runWriterT $ untilEOF
+runParser ts = first Program . (`evalState` (undefined, ts)) . runWriterT $ untilToken [T.EOF]

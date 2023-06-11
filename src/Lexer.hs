@@ -69,8 +69,8 @@ numberToken c s = first (T.Token T.Int) <$> spanningMatcher isDigit c s
 keywordType :: String -> Maybe T.TokenType
 keywordType "let" = Just T.Let
 keywordType "fn" = Just T.Function
-keywordType "true" = Just T.TrueT
-keywordType "false" = Just T.FalseT
+keywordType "true" = Just T.True
+keywordType "false" = Just T.False
 keywordType "if" = Just T.If
 keywordType "else" = Just T.Else
 keywordType "return" = Just T.Return

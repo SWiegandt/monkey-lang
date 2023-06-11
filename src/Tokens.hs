@@ -23,8 +23,8 @@ data TokenType
     | RBrace
     | Function
     | Let
-    | TrueT
-    | FalseT
+    | True
+    | False
     | If
     | Else
     | Return

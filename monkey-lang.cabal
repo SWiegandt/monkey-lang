@@ -45,6 +45,7 @@ test-suite test-monkey
         base ^>=4.16.4.0,
         hspec ==2.11.1,
         mtl ==2.3.1,
+        transformers ==0.6.1.0,
         monkey-lang
     hs-source-dirs: test
     other-modules:
