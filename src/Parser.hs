@@ -37,6 +37,7 @@ precedence T.Plus = Sum
 precedence T.Minus = Sum
 precedence T.Slash = Product
 precedence T.Asterisk = Product
+precedence T.LParen = Call
 precedence _ = Lowest
 
 peek :: Parser T.Token
@@ -54,9 +55,9 @@ currentToken = gets fst
 nextStatement :: Parser (Maybe N.Statement)
 nextStatement = do
     current <- currentToken
-    runMaybeT $ case T.ttype current of
-        T.Let -> parseLet current
-        T.Return -> parseReturn current
+    case T.ttype current of
+        T.Let -> runMaybeT $ parseLet current
+        T.Return -> runMaybeT $ parseReturn current
         _ -> parseExpressionStmt current
 
 nextToken :: Parser T.Token
@@ -84,25 +85,34 @@ eatUntil tt = do
 parseLet :: T.Token -> MaybeT Parser N.Statement
 parseLet current = do
     identToken <- expectToken T.Ident
-    assignToken <- expectToken T.Assign
-    lift $ eatUntil T.Semicolon
-
+    expectToken T.Assign
     let identifier = N.Identifier identToken (T.literal identToken)
-    return (N.LetStmt current identifier N.MissingExpr)
+    next <- lift nextToken
+    value <- parseExpression next Lowest
+    peekToken <- gets (listToMaybe . snd)
+    case T.ttype <$> peekToken of
+        Just T.Semicolon -> void $ lift nextToken
+        _ -> return ()
+    return (N.LetStmt current identifier value)
 
 parseReturn :: T.Token -> MaybeT Parser N.Statement
 parseReturn current = do
-    lift $ eatUntil T.Semicolon
-    return (N.ReturnStmt current N.MissingExpr)
+    next <- lift nextToken
+    returnValue <- parseExpression next Lowest
+    peekToken <- gets (listToMaybe . snd)
+    case T.ttype <$> peekToken of
+        Just T.Semicolon -> void $ lift nextToken
+        _ -> return ()
+    return (N.ReturnStmt current returnValue)
 
-parseExpressionStmt :: T.Token -> MaybeT Parser N.Statement
+parseExpressionStmt :: T.Token -> Parser (Maybe N.Statement)
 parseExpressionStmt current = do
-    expr <- parseExpression current Lowest
+    expr <- runMaybeT $ parseExpression current Lowest
     maybeNext <- gets (listToMaybe . snd)
     case maybeNext of
-        Just (T.Token T.Semicolon _) -> void $ lift nextToken
+        Just (T.Token T.Semicolon _) -> void nextToken
         _ -> return ()
-    return (N.ExpressionStmt current expr)
+    return $ N.ExpressionStmt current <$> expr
 
 parseExpression :: T.Token -> Precedence -> MaybeT Parser N.Expression
 parseExpression current precedence = do
@@ -116,13 +126,14 @@ parsePrefix current = case T.ttype current of
         Nothing -> do
             lift $ tell [printf "could not parse %s as integer" (T.literal current)]
             hoistMaybe Nothing
-        Just value -> return $ N.IntegerLiteralExpr current value
+        Just value -> return $ N.IntegerExpr current value
     T.True -> return $ N.BooleanExpr current True
     T.False -> return $ N.BooleanExpr current False
     T.Bang -> parsePrefixExpression current
     T.Minus -> parsePrefixExpression current
     T.LParen -> parseGroupedExpression
     T.If -> parseIfExpression current
+    T.Function -> parseFunctionExpression current
     _ -> do
         lift . tell $ [printf "no prefix parse function for %s found" $ show (T.ttype current)]
         hoistMaybe Nothing
@@ -132,6 +143,37 @@ parsePrefixExpression current = do
     next <- lift nextToken
     rhs <- parseExpression next Prefix
     return $ N.PrefixExpression current (T.literal current) rhs
+
+parseInfix :: N.Expression -> Precedence -> MaybeT Parser N.Expression
+parseInfix lhs precedence = do
+    peekedToken <- lift peek
+    peekedPrecedence <- lift peekPrecedence
+    if T.ttype peekedToken == T.Semicolon || precedence >= peekedPrecedence
+        then return lhs
+        else do
+            current <- lift nextToken
+            lhs <- parseInfixExpression current lhs
+            parseInfix lhs precedence
+
+parseInfixExpression :: T.Token -> N.Expression -> MaybeT Parser N.Expression
+parseInfixExpression current lhs
+    | T.ttype current
+        `elem` [ T.Plus,
+                 T.Minus,
+                 T.Slash,
+                 T.Asterisk,
+                 T.Equal,
+                 T.NotEqual,
+                 T.LessThan,
+                 T.GreaterThan
+               ] = do
+        let precedence = tokenPrecedence current
+        next <- lift nextToken
+        rhs <- parseExpression next precedence
+        return $ N.InfixExpression current lhs (T.literal current) rhs
+    | T.ttype current == T.LParen = do
+        N.CallExpression current lhs <$> parseCallArguments
+    | otherwise = return lhs
 
 parseGroupedExpression :: MaybeT Parser N.Expression
 parseGroupedExpression = do
@@ -158,29 +200,55 @@ parseIfExpression current = do
             N.IfExpression current condition consequence . Just <$> parseBlock
         _ -> return $ N.IfExpression current condition consequence Nothing
 
-parseBlock :: MaybeT Parser N.Block
-parseBlock = N.Block <$> lift (untilToken [T.RBrace, T.EOF])
+parseFunctionExpression :: T.Token -> MaybeT Parser N.Expression
+parseFunctionExpression current = do
+    expectToken T.LParen
+    params <- parseFunctionParams
+    expectToken T.LBrace
+    N.FunctionExpr current params <$> parseBlock
 
-parseInfix :: N.Expression -> Precedence -> MaybeT Parser N.Expression
-parseInfix lhs precedence = do
-    peekedToken <- lift peek
-    peekedPrecedence <- lift peekPrecedence
-    if T.ttype peekedToken == T.Semicolon || precedence >= peekedPrecedence
-        then return lhs
+parseFunctionParams :: MaybeT Parser [N.Identifier]
+parseFunctionParams = do
+    peekToken <- lift peek
+    if T.ttype peekToken == T.RParen
+        then lift nextToken >> return []
+        else do
+            ident <- lift nextToken
+            params <- (N.Identifier ident (T.literal ident) :) <$> go
+            expectToken T.RParen
+            return params
+    where
+        go = do
+            peekToken <- lift peek
+            case T.ttype peekToken of
+                T.Comma -> do
+                    ident <- lift nextToken >> lift nextToken
+                    (N.Identifier ident (T.literal ident) :) <$> go
+                _ -> return []
+
+parseCallArguments :: MaybeT Parser [N.Expression]
+parseCallArguments = do
+    peekToken <- lift peek
+    if T.ttype peekToken == T.RParen
+        then lift nextToken >> return []
         else do
             current <- lift nextToken
-            lhs <- parseInfixExpression current lhs
-            parseInfix lhs precedence
+            expr <- parseExpression current Lowest
+            args <- (expr :) <$> go
+            expectToken T.RParen
+            return args
+    where
+        go = do
+            peekToken <- lift peek
+            case T.ttype peekToken of
+                T.Comma -> do
+                    current <- lift nextToken >> lift nextToken
+                    expr <- parseExpression current Lowest
+                    (expr :) <$> go
+                _ -> return []
 
-parseInfixExpression :: T.Token -> N.Expression -> MaybeT Parser N.Expression
-parseInfixExpression current lhs =
-    if T.ttype current `notElem` [T.Plus, T.Minus, T.Slash, T.Asterisk, T.Equal, T.NotEqual, T.LessThan, T.GreaterThan]
-        then return lhs
-        else do
-            let precedence = tokenPrecedence current
-            next <- lift nextToken
-            rhs <- parseExpression next precedence
-            return $ N.InfixExpression current lhs (T.literal current) rhs
+parseBlock :: MaybeT Parser N.Block
+parseBlock = N.Block <$> lift (untilToken [T.RBrace, T.EOF])
 
 untilToken :: [T.TokenType] -> Parser [N.Statement]
 untilToken ttypes = do

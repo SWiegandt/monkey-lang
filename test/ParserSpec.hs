@@ -19,7 +19,7 @@ spec = do
     describe "ReturnStmt" testReturnStatements
     describe "Show" testShow
     describe "IdentifierExpr" testIdentifierExpression
-    describe "IntegerLiteralExpr" testIntegerLiteralExpression
+    describe "IntegerExpr" testIntegerLiteralExpression
     describe "BooleanExpr" testBooleanExpression
     describe "prefixParse" testPrefixParse
     describe "infixParse" $ do
@@ -27,21 +27,22 @@ spec = do
         testOperatorPrecedence
     describe "IfExpression" testIfExpression
     describe "IfElseExpression" testIfElseExpression
+    describe "FunctionExpr" testFunctionExpression
+    describe "Function parameters" testFunctionParameterParsing
+    describe "CallExpression" testCallExpression
 
 checkErrorLog log = it "reports no errors" $ log `shouldSatisfy` null
 
 testLetStatements = do
-    let input =
-            unlines
-                [ "let x = 5;",
-                  "let y = 10;",
-                  "let foobar = 838383;"
-                ]
-        (Program statements, log) = runParser . runLexer $ input
+    let inputs = ["let x = 5;", "let y = true;", "let foobar = y;"]
+        outputs = [("x", IntExpectation 5), ("y", BooleanExpectation True), ("foobar", StringExpectation "y")]
 
-    checkErrorLog log
-    it "parses let statements" $ length statements `shouldBe` 3
-    zipWithM_ testLetStatement statements ["x", "y", "foobar"]
+    forM_ (zip inputs outputs) $ \(input, output) -> do
+        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        checkErrorLog log
+        it "should have one statement" $ length stmts `shouldBe` 1
+        testLetStatement statement (fst output)
+        it "has correct value" $ testLiteralExpression (N.letValue statement) (snd output)
 
 testLetStatement statement name = do
     it "should have tokenLiteral 'let'" $ N.tokenLiteral statement `shouldBe` "let"
@@ -55,17 +56,15 @@ testLetStatement statement name = do
         N.tokenLiteral (N.letName statement) `shouldBe` name
 
 testReturnStatements = do
-    let input =
-            unlines
-                [ "return 5;",
-                  "return 10;",
-                  "return 993322;"
-                ]
-        (Program statements, log) = runParser . runLexer $ input
+    let inputs = ["return 5;", "return true;", "return foobar;"]
+        outputs = [IntExpectation 5, BooleanExpectation True, StringExpectation "foobar"]
 
-    checkErrorLog log
-    it "parses return statements" $ length statements `shouldBe` 3
-    mapM_ testReturnStatement statements
+    forM_ (zip inputs outputs) $ \(input, output) -> do
+        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        checkErrorLog log
+        it "should have one statement" $ length stmts `shouldBe` 1
+        testReturnStatement statement
+        it "has correct value" $ testLiteralExpression (N.returnValue statement) output
 
 testReturnStatement statement = do
     it "should have tokenLiteral 'return'" $ N.tokenLiteral statement `shouldBe` "return"
@@ -118,7 +117,7 @@ testIntegerLiteralExpression = do
 
     it "should parse integer literal expressions" $ case statement of
         N.ExpressionStmt _ expr -> case expr of
-            e@(N.IntegerLiteralExpr t v) -> do
+            e@(N.IntegerExpr t v) -> do
                 when (v /= 5) $
                     expectationFailure $
                         printf "Expected 5 value, got %s" v
@@ -196,7 +195,7 @@ testInfixParse = do
 
 testIntegerLiteral :: N.Expression -> Integer -> MaybeT IO ()
 testIntegerLiteral rhs expected = case rhs of
-    expr@(N.IntegerLiteralExpr _ i) -> do
+    expr@(N.IntegerExpr _ i) -> do
         when (i /= expected) $ hoistMaybe Nothing
         when (N.tokenLiteral expr /= show expected) $ hoistMaybe Nothing
     _ -> lift . expectationFailure $ printf "Expected integer literal, got %s" $ show rhs
@@ -255,7 +254,10 @@ testOperatorPrecedence = do
               ["2 / (5 + 5)", "(2 / (5 + 5))"],
               ["(5 + 5) * 2 * (5 + 5)", "(((5 + 5) * 2) * (5 + 5))"],
               ["-(5 + 5)", "(-(5 + 5))"],
-              ["!(true == true)", "(!(true == true))"]
+              ["!(true == true)", "(!(true == true))"],
+              ["a + add(b * c) + d", "((a + add((b * c))) + d)"],
+              ["add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"],
+              ["add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"]
             ]
 
     forM_ inputs $ \[input, output] -> do
@@ -311,4 +313,60 @@ testIfElseExpression = do
                     N.ExpressionStmt _ (N.IdentifierExpr (N.Identifier _ s)) -> s `shouldBe` "y"
                     _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show (head alt))
             _ -> expectationFailure $ printf "Expected IfExpression with else, got %s" (show expr)
+        _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
+testFunctionExpression = do
+    let input = "fn(x, y) { x + y; }"
+        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+    checkErrorLog log
+
+    it "should contain one statement" $ length stmts `shouldBe` 1
+
+    it "should parse function expressions" $ case statement of
+        N.ExpressionStmt _ expr -> case expr of
+            N.FunctionExpr _ params body -> do
+                length params `shouldBe` 2
+                testLiteralExpression (N.IdentifierExpr $ head params) (StringExpectation "x")
+                testLiteralExpression (N.IdentifierExpr $ params !! 1) (StringExpectation "y")
+
+                case body of
+                    N.Block [N.ExpressionStmt _ stmt] ->
+                        testInfixExpression stmt (StringExpectation "x") "+" (StringExpectation "y")
+                    _ -> expectationFailure $ printf "Expected body with one statement, got %s" (show body)
+            _ -> expectationFailure $ printf "Expected FunctionExpr, got %s" (show expr)
+        _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
+testFunctionParameterParsing = do
+    let inputs = ["fn() {};", "fn(x) {};", "fn(x, y, z) {};"]
+        outputs = [[], ["x"], ["x", "y", "z"]]
+
+    forM_ (zip inputs outputs) $ \(input, output) -> do
+        let (Program [N.ExpressionStmt _ (N.FunctionExpr _ params _)], log) = runParser . runLexer $ input
+
+        checkErrorLog log
+
+        it "should parse params correctly" $ do
+            length params `shouldBe` length output
+
+            forM_ (zip params output) $ \(param, expected) ->
+                testLiteralExpression (N.IdentifierExpr param) (StringExpectation expected)
+
+testCallExpression = do
+    let input = "add(1, 2 * 3, 4 + 5);"
+        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+    checkErrorLog log
+
+    it "should contain one statement" $ length stmts `shouldBe` 1
+
+    it "should parse call expressions" $ case statement of
+        N.ExpressionStmt _ expr -> case expr of
+            N.CallExpression _ fn args -> do
+                testIdentifier fn "add"
+                length args `shouldBe` 3
+                testLiteralExpression (head args) (IntExpectation 1)
+                testInfixExpression (args !! 1) (IntExpectation 2) "*" (IntExpectation 3)
+                testInfixExpression (args !! 2) (IntExpectation 4) "+" (IntExpectation 5)
+            _ -> expectationFailure $ printf "Expected CallExpression, got %s" (show expr)
         _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)

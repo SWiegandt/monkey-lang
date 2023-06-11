@@ -1,6 +1,7 @@
 module Main where
 
 import Lexer (runLexer)
+import Parser (Program (Program), runParser)
 import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
@@ -10,7 +11,10 @@ repl :: IO ()
 repl = do
     putStr ">> " >> hFlush stdout
     line <- getLine
-    mapM_ print . filter (\t -> T.ttype t /= T.EOF) $ runLexer line
+    let (p, log) = runParser . runLexer $ line
+    if null log
+        then print p
+        else mapM_ (printf "\t%s\n") log
     repl
 
 main :: IO ()

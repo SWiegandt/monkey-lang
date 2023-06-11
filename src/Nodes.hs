@@ -1,5 +1,6 @@
 module Nodes where
 
+import Data.List (intercalate)
 import Text.Printf (printf)
 import qualified Tokens as T
 
@@ -20,32 +21,43 @@ instance Show Identifier where
 
 data Expression
     = IdentifierExpr Identifier
-    | IntegerLiteralExpr T.Token Integer
+    | IntegerExpr T.Token Integer
     | BooleanExpr T.Token Bool
     | PrefixExpression T.Token String Expression
     | InfixExpression T.Token Expression String Expression
     | IfExpression T.Token Expression Block (Maybe Block)
+    | FunctionExpr T.Token [Identifier] Block
+    | CallExpression T.Token Expression [Expression]
     | MissingExpr
     deriving (Eq)
 
 instance Node Expression where
     tokenLiteral (IdentifierExpr i) = tokenLiteral i
-    tokenLiteral (IntegerLiteralExpr t _) = T.literal t
+    tokenLiteral (IntegerExpr t _) = T.literal t
     tokenLiteral (BooleanExpr t _) = T.literal t
     tokenLiteral (PrefixExpression t _ _) = T.literal t
     tokenLiteral (InfixExpression t _ _ _) = T.literal t
     tokenLiteral (IfExpression t _ _ _) = T.literal t
+    tokenLiteral (FunctionExpr t _ _) = T.literal t
+    tokenLiteral (CallExpression t _ _) = T.literal t
     tokenLiteral MissingExpr = ""
 
 instance Show Expression where
     show (IdentifierExpr i) = show i
-    show e@(IntegerLiteralExpr {}) = tokenLiteral e
+    show e@(IntegerExpr {}) = tokenLiteral e
     show e@(BooleanExpr {}) = tokenLiteral e
     show (PrefixExpression _ op rhs) = printf "(%s%s)" op (show rhs)
     show (InfixExpression _ lhs op rhs) = printf "(%s %s %s)" (show lhs) op (show rhs)
     show (IfExpression _ cond cons alt) =
         let altString = maybe "" (printf "else %s" . show) alt
          in printf "if%s %s%s" (show cond) (show cons) altString
+    show f@(FunctionExpr _ params body) =
+        printf
+            "%s(%s) %s"
+            (tokenLiteral f)
+            (intercalate ", " $ map show params)
+            (show body)
+    show c@(CallExpression _ fn args) = printf "%s(%s)" (show fn) (intercalate ", " $ map show args)
     show MissingExpr = ""
 
 newtype Block = Block [Statement] deriving (Eq)
