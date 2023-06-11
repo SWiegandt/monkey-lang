@@ -1,11 +1,10 @@
 module Main where
 
 import Lexer (runLexer)
-import Parser (Program (Program), runParser)
+import Parser (runParser)
 import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
-import qualified Tokens as T
 
 repl :: IO ()
 repl = do

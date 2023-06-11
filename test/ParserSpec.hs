@@ -2,14 +2,13 @@
 
 module ParserSpec (spec) where
 
-import Control.Monad (forM_, void, when, zipWithM_)
-import Control.Monad.State (MonadTrans (lift), evalState)
+import Control.Monad (forM_, void, when)
+import Control.Monad.State (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
-import Debug.Trace (trace, traceM)
 import Lexer (runLexer)
 import qualified Nodes as N
 import Parser (Program (Program), runParser)
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldNotBe, shouldSatisfy)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Printf (printf)
 import qualified Tokens as T
 
@@ -214,6 +213,7 @@ testBooleanLiteral expr value = case expr of
     b@(N.BooleanExpr _ v) -> do
         when (v /= value) $ printf "Expected boolean value %s, got %s" (show value) (show v)
         when (N.tokenLiteral b /= show value) $ printf "Expected token literal %s, got %s" (show value) (N.tokenLiteral b)
+    _ -> expectationFailure $ printf "Expected BooleanExpr, got %s" (show expr)
 
 data ExpressionExpectation
     = IntExpectation Integer
@@ -230,6 +230,7 @@ testInfixExpression (N.InfixExpression _ lhs op rhs) lhse ope rhse = do
     testLiteralExpression lhs lhse
     when (op /= ope) $ printf "Expected operator %s, got %s" ope op
     testLiteralExpression rhs rhse
+testInfixExpression expr _ _ _ = expectationFailure $ printf "Expected InfixExpression, got %s" (show expr)
 
 testOperatorPrecedence = do
     let inputs =

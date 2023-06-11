@@ -28,7 +28,6 @@ data Expression
     | IfExpression T.Token Expression Block (Maybe Block)
     | FunctionExpr T.Token [Identifier] Block
     | CallExpression T.Token Expression [Expression]
-    | MissingExpr
     deriving (Eq)
 
 instance Node Expression where
@@ -40,7 +39,6 @@ instance Node Expression where
     tokenLiteral (IfExpression t _ _ _) = T.literal t
     tokenLiteral (FunctionExpr t _ _) = T.literal t
     tokenLiteral (CallExpression t _ _) = T.literal t
-    tokenLiteral MissingExpr = ""
 
 instance Show Expression where
     show (IdentifierExpr i) = show i
@@ -58,7 +56,6 @@ instance Show Expression where
             (intercalate ", " $ map show params)
             (show body)
     show c@(CallExpression _ fn args) = printf "%s(%s)" (show fn) (intercalate ", " $ map show args)
-    show MissingExpr = ""
 
 newtype Block = Block [Statement] deriving (Eq)
 
@@ -83,7 +80,6 @@ data Statement
         { blockToken :: T.Token,
           block :: Block
         }
-    | InvalidStatement
     deriving (Eq)
 
 instance Node Statement where
@@ -97,4 +93,3 @@ instance Show Statement where
     show stmt@(ReturnStmt _ v) = printf "%s %s;" (tokenLiteral stmt) (show v)
     show (ExpressionStmt _ e) = show e
     show (BlockStatement _ b) = show b
-    show InvalidStatement = "INVALID"
