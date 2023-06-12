@@ -23,8 +23,10 @@ extra-source-files: CHANGELOG.md
 
 library
   exposed-modules:
+    Evaluator
     Lexer
     Nodes
+    Object
     Parser
     Tokens
 
@@ -35,6 +37,7 @@ library
   -- other-extensions:
   build-depends:
     , base          ^>=4.16.4.0
+    , containers    ==0.6.7
     , mtl           ==2.3.1
     , transformers  ==0.6.1.0
 
@@ -47,6 +50,7 @@ test-suite test-monkey
   main-is:            Spec.hs
   build-depends:
     , base          ^>=4.16.4.0
+    , containers    ==0.6.7
     , hspec         ==2.11.1
     , monkey-lang
     , mtl           ==2.3.1
@@ -54,6 +58,7 @@ test-suite test-monkey
 
   hs-source-dirs:     test
   other-modules:
+    EvaluatorSpec
     LexerSpec
     ParserSpec
 
@@ -71,6 +76,7 @@ executable monkey-lang
   -- other-extensions:
   build-depends:
     , base         ^>=4.16.4.0
+    , containers   ==0.6.7
     , monkey-lang
     , mtl          ==2.3.1
 

@@ -1,5 +1,6 @@
 module Parser where
 
+import Control.Applicative (Applicative (liftA2))
 import Control.Monad (void, when)
 import Control.Monad.State (MonadState (put), MonadTrans (lift), State, evalState, gets)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
@@ -12,11 +13,6 @@ import Text.Read (readMaybe)
 import qualified Tokens as T
 
 type Parser = WriterT [String] (State (T.Token, [T.Token]))
-
-newtype Program = Program [N.Statement]
-
-instance Show Program where
-    show (Program stmts) = concatMap show stmts
 
 data Precedence
     = Lowest
@@ -118,14 +114,14 @@ parseExpression precedence = do
 
 parsePrefix :: T.Token -> MaybeT Parser N.Expression
 parsePrefix current = case T.ttype current of
-    T.Ident -> return $ N.IdentifierExpr (N.Identifier current (T.literal current))
+    T.Ident -> return $ N.IdentifierExpression (N.Identifier current (T.literal current))
     T.Int -> case readMaybe $ T.literal current of
         Nothing -> do
             lift $ tell [printf "could not parse %s as integer" (T.literal current)]
             hoistMaybe Nothing
-        Just value -> return $ N.IntegerExpr current value
-    T.True -> return $ N.BooleanExpr current True
-    T.False -> return $ N.BooleanExpr current False
+        Just value -> return $ N.IntegerExpression current value
+    T.True -> return $ N.BooleanExpression current True
+    T.False -> return $ N.BooleanExpression current False
     T.Bang -> parsePrefixExpression
     T.Minus -> parsePrefixExpression
     T.LParen -> parseGroupedExpression
@@ -193,7 +189,7 @@ parseIfExpression = do
 
 parseFunctionExpression :: MaybeT Parser N.Expression
 parseFunctionExpression =
-    N.FunctionExpr
+    N.FunctionExpression
         <$> lift currentToken
         <* expectToken T.LParen
         <*> parseFunctionParams
@@ -205,40 +201,28 @@ parseFunctionParams = do
     peekToken <- lift peek
     if T.ttype peekToken == T.RParen
         then lift nextToken >> return []
-        else
-            (\ident -> (N.Identifier ident (T.literal ident) :))
-                <$> lift nextToken
-                <*> rest
-                <* expectToken T.RParen
+        else appendParameter <$> lift nextToken <*> rest <* expectToken T.RParen
     where
         rest = do
             peekToken <- lift peek
             case T.ttype peekToken of
-                T.Comma ->
-                    (\ident -> (N.Identifier ident (T.literal ident) :))
-                        <$> (lift nextToken *> lift nextToken)
-                        <*> rest
+                T.Comma -> appendParameter <$> (lift nextToken *> lift nextToken) <*> rest
                 _ -> return []
+        appendParameter ident = (N.Identifier ident (T.literal ident) :)
 
 parseCallArguments :: MaybeT Parser [N.Expression]
 parseCallArguments = do
     peekToken <- lift peek
     if T.ttype peekToken == T.RParen
         then lift nextToken >> return []
-        else
-            (:)
-                <$> (lift nextToken *> parseExpression Lowest)
-                <*> rest
-                <* expectToken T.RParen
+        else appendParam (lift nextToken) <* expectToken T.RParen
     where
         rest = do
             peekToken <- lift peek
             case T.ttype peekToken of
-                T.Comma ->
-                    (:)
-                        <$> (lift nextToken *> lift nextToken *> parseExpression Lowest)
-                        <*> rest
+                T.Comma -> appendParam (lift nextToken *> lift nextToken)
                 _ -> return []
+        appendParam position = liftA2 (:) (position *> parseExpression Lowest) rest
 
 parseBlock :: MaybeT Parser N.Block
 parseBlock = N.Block <$> lift (untilToken [T.RBrace, T.EOF])
@@ -250,6 +234,6 @@ untilToken ttypes = do
         then return []
         else (\stmt -> (fromJust stmt :)) <$> nextStatement <*> untilToken ttypes
 
-runParser :: [T.Token] -> (Program, [String])
-runParser [] = (Program [], [])
-runParser ts = first Program . (`evalState` (undefined, ts)) . runWriterT $ untilToken [T.EOF]
+runParser :: [T.Token] -> (N.Program, [String])
+runParser [] = (N.Program [], [])
+runParser ts = first N.Program . (`evalState` (undefined, ts)) . runWriterT $ untilToken [T.EOF]

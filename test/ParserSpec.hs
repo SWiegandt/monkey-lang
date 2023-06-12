@@ -7,7 +7,7 @@ import Control.Monad.State (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
 import Lexer (runLexer)
 import qualified Nodes as N
-import Parser (Program (Program), runParser)
+import Parser (runParser)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Printf (printf)
 import qualified Tokens as T
@@ -37,7 +37,7 @@ testLetStatements = do
         outputs = [("x", IntExpectation 5), ("y", BooleanExpectation True), ("foobar", StringExpectation "y")]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
         checkErrorLog log
         it "should have one statement" $ length stmts `shouldBe` 1
         testLetStatement statement (fst output)
@@ -59,7 +59,7 @@ testReturnStatements = do
         outputs = [IntExpectation 5, BooleanExpectation True, StringExpectation "foobar"]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
         checkErrorLog log
         it "should have one statement" $ length stmts `shouldBe` 1
         testReturnStatement statement
@@ -74,11 +74,11 @@ testReturnStatement statement = do
 
 testShow = do
     let program =
-            Program
+            N.Program
                 [ N.LetStmt
                     { N.letToken = T.Token T.Let "let",
                       N.letName = N.Identifier (T.Token T.Ident "myVar") "myVar",
-                      N.letValue = N.IdentifierExpr (N.Identifier (T.Token T.Ident "anotherVar") "anotherVar")
+                      N.letValue = N.IdentifierExpression (N.Identifier (T.Token T.Ident "anotherVar") "anotherVar")
                     }
                 ]
 
@@ -87,7 +87,7 @@ testShow = do
 
 testIdentifierExpression = do
     let input = "foobar;"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 
@@ -95,7 +95,7 @@ testIdentifierExpression = do
 
     it "should parse identity expressions" $ case statement of
         N.ExpressionStmt _ expr -> case expr of
-            N.IdentifierExpr i@(N.Identifier t v) -> do
+            N.IdentifierExpression i@(N.Identifier t v) -> do
                 when (v /= "foobar") $
                     expectationFailure $
                         printf "Expected foobar literal, got %s" v
@@ -108,7 +108,7 @@ testIdentifierExpression = do
 
 testIntegerLiteralExpression = do
     let input = "5;"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 
@@ -116,7 +116,7 @@ testIntegerLiteralExpression = do
 
     it "should parse integer literal expressions" $ case statement of
         N.ExpressionStmt _ expr -> case expr of
-            e@(N.IntegerExpr t v) -> do
+            e@(N.IntegerExpression t v) -> do
                 when (v /= 5) $
                     expectationFailure $
                         printf "Expected 5 value, got %s" v
@@ -131,7 +131,7 @@ testBooleanExpression = do
     let inputs = [("true;", True), ("false;", False)]
 
     forM_ inputs $ \(input, output) -> do
-        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
         checkErrorLog log
 
@@ -139,7 +139,7 @@ testBooleanExpression = do
 
         it "should parse boolean expressions" $ case statement of
             N.ExpressionStmt _ expr -> case expr of
-                e@(N.BooleanExpr t v) -> do
+                e@(N.BooleanExpression t v) -> do
                     when (v /= output) $
                         expectationFailure $
                             printf "Expected %s value, got %s" (show output) (show v)
@@ -151,7 +151,7 @@ testPrefixParse = do
         expecteds = [("!", 5), ("-", 15)]
 
     forM_ (zip inputs expecteds) $ \(input, expected) -> do
-        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
         checkErrorLog log
 
@@ -173,7 +173,7 @@ testInfixParse = do
         expecteds = [(5, "+", 5), (5, "-", 5), (5, "*", 5), (5, "/", 5), (5, ">", 5), (5, "<", 5), (5, "==", 5), (5, "!=", 5)]
 
     forM_ (zip inputs expecteds) $ \(input, (el, eo, er)) -> do
-        let (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
         checkErrorLog log
 
@@ -194,14 +194,14 @@ testInfixParse = do
 
 testIntegerLiteral :: N.Expression -> Integer -> MaybeT IO ()
 testIntegerLiteral rhs expected = case rhs of
-    expr@(N.IntegerExpr _ i) -> do
+    expr@(N.IntegerExpression _ i) -> do
         when (i /= expected) $ hoistMaybe Nothing
         when (N.tokenLiteral expr /= show expected) $ hoistMaybe Nothing
     _ -> lift . expectationFailure $ printf "Expected integer literal, got %s" $ show rhs
 
 testIdentifier :: N.Expression -> String -> Expectation
 testIdentifier expr value = case expr of
-    N.IdentifierExpr i@(N.Identifier _ v) -> do
+    N.IdentifierExpression i@(N.Identifier _ v) -> do
         when (v /= value) $ expectationFailure $ printf "Expected value %s, got %s" value v
         when (N.tokenLiteral i /= value) $
             expectationFailure $
@@ -210,7 +210,7 @@ testIdentifier expr value = case expr of
 
 testBooleanLiteral :: N.Expression -> Bool -> Expectation
 testBooleanLiteral expr value = case expr of
-    b@(N.BooleanExpr _ v) -> do
+    b@(N.BooleanExpression _ v) -> do
         when (v /= value) $ printf "Expected boolean value %s, got %s" (show value) (show v)
         when (N.tokenLiteral b /= show value) $ printf "Expected token literal %s, got %s" (show value) (N.tokenLiteral b)
     _ -> expectationFailure $ printf "Expected BooleanExpr, got %s" (show expr)
@@ -268,7 +268,7 @@ testOperatorPrecedence = do
 
 testIfExpression = do
     let input = "if (x < y) { x }"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 
@@ -284,14 +284,14 @@ testIfExpression = do
                 length cons `shouldBe` 1
 
                 case head cons of
-                    N.ExpressionStmt _ (N.IdentifierExpr (N.Identifier _ s)) -> s `shouldBe` "x"
+                    N.ExpressionStmt _ (N.IdentifierExpression (N.Identifier _ s)) -> s `shouldBe` "x"
                     _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show (head cons))
             _ -> expectationFailure $ printf "Expected IfExpression with no else, got %s" (show expr)
         _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
 
 testIfElseExpression = do
     let input = "if (x < y) { x } else { y }"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 
@@ -307,18 +307,18 @@ testIfElseExpression = do
                 length cons `shouldBe` 1
 
                 case head cons of
-                    N.ExpressionStmt _ (N.IdentifierExpr (N.Identifier _ s)) -> s `shouldBe` "x"
+                    N.ExpressionStmt _ (N.IdentifierExpression (N.Identifier _ s)) -> s `shouldBe` "x"
                     _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show (head cons))
 
                 case head alt of
-                    N.ExpressionStmt _ (N.IdentifierExpr (N.Identifier _ s)) -> s `shouldBe` "y"
+                    N.ExpressionStmt _ (N.IdentifierExpression (N.Identifier _ s)) -> s `shouldBe` "y"
                     _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show (head alt))
             _ -> expectationFailure $ printf "Expected IfExpression with else, got %s" (show expr)
         _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
 
 testFunctionExpression = do
     let input = "fn(x, y) { x + y; }"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 
@@ -326,10 +326,10 @@ testFunctionExpression = do
 
     it "should parse function expressions" $ case statement of
         N.ExpressionStmt _ expr -> case expr of
-            N.FunctionExpr _ params body -> do
+            N.FunctionExpression _ params body -> do
                 length params `shouldBe` 2
-                testLiteralExpression (N.IdentifierExpr $ head params) (StringExpectation "x")
-                testLiteralExpression (N.IdentifierExpr $ params !! 1) (StringExpectation "y")
+                testLiteralExpression (N.IdentifierExpression $ head params) (StringExpectation "x")
+                testLiteralExpression (N.IdentifierExpression $ params !! 1) (StringExpectation "y")
 
                 case body of
                     N.Block [N.ExpressionStmt _ stmt] ->
@@ -343,7 +343,7 @@ testFunctionParameterParsing = do
         outputs = [[], ["x"], ["x", "y", "z"]]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        let (Program [N.ExpressionStmt _ (N.FunctionExpr _ params _)], log) = runParser . runLexer $ input
+        let (N.Program [N.ExpressionStmt _ (N.FunctionExpression _ params _)], log) = runParser . runLexer $ input
 
         checkErrorLog log
 
@@ -351,11 +351,11 @@ testFunctionParameterParsing = do
             length params `shouldBe` length output
 
             forM_ (zip params output) $ \(param, expected) ->
-                testLiteralExpression (N.IdentifierExpr param) (StringExpectation expected)
+                testLiteralExpression (N.IdentifierExpression param) (StringExpectation expected)
 
 testCallExpression = do
     let input = "add(1, 2 * 3, 4 + 5);"
-        (Program stmts@(statement : _), log) = runParser . runLexer $ input
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
 
     checkErrorLog log
 

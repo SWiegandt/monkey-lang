@@ -20,36 +20,36 @@ instance Show Identifier where
     show = identValue
 
 data Expression
-    = IdentifierExpr Identifier
-    | IntegerExpr T.Token Integer
-    | BooleanExpr T.Token Bool
+    = IdentifierExpression Identifier
+    | IntegerExpression T.Token Integer
+    | BooleanExpression T.Token Bool
     | PrefixExpression T.Token String Expression
     | InfixExpression T.Token Expression String Expression
     | IfExpression T.Token Expression Block (Maybe Block)
-    | FunctionExpr T.Token [Identifier] Block
+    | FunctionExpression T.Token [Identifier] Block
     | CallExpression T.Token Expression [Expression]
     deriving (Eq)
 
 instance Node Expression where
-    tokenLiteral (IdentifierExpr i) = tokenLiteral i
-    tokenLiteral (IntegerExpr t _) = T.literal t
-    tokenLiteral (BooleanExpr t _) = T.literal t
+    tokenLiteral (IdentifierExpression i) = tokenLiteral i
+    tokenLiteral (IntegerExpression t _) = T.literal t
+    tokenLiteral (BooleanExpression t _) = T.literal t
     tokenLiteral (PrefixExpression t _ _) = T.literal t
     tokenLiteral (InfixExpression t _ _ _) = T.literal t
     tokenLiteral (IfExpression t _ _ _) = T.literal t
-    tokenLiteral (FunctionExpr t _ _) = T.literal t
+    tokenLiteral (FunctionExpression t _ _) = T.literal t
     tokenLiteral (CallExpression t _ _) = T.literal t
 
 instance Show Expression where
-    show (IdentifierExpr i) = show i
-    show e@(IntegerExpr {}) = tokenLiteral e
-    show e@(BooleanExpr {}) = tokenLiteral e
+    show (IdentifierExpression i) = show i
+    show e@(IntegerExpression {}) = tokenLiteral e
+    show e@(BooleanExpression {}) = tokenLiteral e
     show (PrefixExpression _ op rhs) = printf "(%s%s)" op (show rhs)
     show (InfixExpression _ lhs op rhs) = printf "(%s %s %s)" (show lhs) op (show rhs)
     show (IfExpression _ cond cons alt) =
         let altString = maybe "" (printf "else %s" . show) alt
          in printf "if%s %s%s" (show cond) (show cons) altString
-    show f@(FunctionExpr _ params body) =
+    show f@(FunctionExpression _ params body) =
         printf
             "%s(%s) %s"
             (tokenLiteral f)
@@ -76,20 +76,23 @@ data Statement
         { expressionToken :: T.Token,
           expression :: Expression
         }
-    | BlockStatement
-        { blockToken :: T.Token,
-          block :: Block
-        }
     deriving (Eq)
 
 instance Node Statement where
     tokenLiteral (LetStmt t _ _) = T.literal t
     tokenLiteral (ReturnStmt t _) = T.literal t
     tokenLiteral (ExpressionStmt t _) = T.literal t
-    tokenLiteral (BlockStatement t _) = T.literal t
 
 instance Show Statement where
     show stmt@(LetStmt _ n v) = printf "%s %s = %s;" (tokenLiteral stmt) (show n) (show v)
     show stmt@(ReturnStmt _ v) = printf "%s %s;" (tokenLiteral stmt) (show v)
     show (ExpressionStmt _ e) = show e
-    show (BlockStatement _ b) = show b
+
+newtype Program = Program [Statement]
+
+instance Node Program where
+    tokenLiteral (Program []) = ""
+    tokenLiteral (Program (s : _)) = tokenLiteral s
+
+instance Show Program where
+    show (Program stmts) = concatMap show stmts
