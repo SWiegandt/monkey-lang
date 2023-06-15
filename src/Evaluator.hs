@@ -1,8 +1,12 @@
 module Evaluator where
 
+import Control.Monad.Error.Class (liftEither)
 import Control.Monad.Except (ExceptT, MonadError (throwError))
-import Control.Monad.State (MonadIO (liftIO), MonadState (get), StateT)
-import Data.IORef (IORef, modifyIORef', readIORef)
+import Control.Monad.State (MonadIO (liftIO), MonadState (get), StateT, gets)
+import Control.Monad.Trans.Except (runExceptT)
+import Control.Monad.Trans.State (evalStateT)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import qualified Data.Map as Map
 import qualified Nodes as N
 import qualified Object as O
 import Text.Printf (printf)
@@ -40,6 +44,9 @@ evalStatement (N.LetStmt _ (N.Identifier _ name) value) = do
 evalStatement (N.ReturnStmt _ expr) = O.OReturn <$> evalExpression expr
 evalStatement (N.ExpressionStmt _ expr) = evalExpression expr
 
+readEnv :: ProgramState O.Environment
+readEnv = get >>= liftIO . readIORef
+
 evalExpression :: N.Expression -> ProgramState O.Object
 evalExpression (N.IntegerExpression _ v) = return $ O.OInt v
 evalExpression (N.BooleanExpression _ v) = return $ O.OBool v
@@ -50,12 +57,28 @@ evalExpression (N.InfixExpression _ lhs op rhs) = do
     evalInfixExpression lhsEval op rhsEval
 evalExpression (N.IfExpression _ cond cons alt) = evalIfExpression cond cons alt
 evalExpression (N.IdentifierExpression (N.Identifier _ name)) = do
-    env <- get >>= liftIO . readIORef
+    env <- readEnv
     value <- liftIO $ env O.!? name
     case value of
         Just v -> return v
         Nothing -> throwError $ printf "identifier not found: %s" name
-evalExpression _ = return O.ONull
+evalExpression (N.FunctionExpression _ params body) = gets (O.OFunction params body)
+evalExpression (N.CallExpression _ funcExpr argExprs) = do
+    func <- evalExpression funcExpr
+    args <- mapM evalExpression argExprs
+    applyFunction func args
+
+applyFunction :: O.Object -> [O.Object] -> ProgramState O.Object
+applyFunction func@(O.OFunction params body env) args = do
+    extended <- liftIO $ extendEnvironment env params args
+    result <- liftIO . runExceptT . evalStateT (evalBlock body) $ extended
+    liftEither result
+applyFunction o _ = throwError $ printf "not a function: %s" (O.inspect o)
+
+extendEnvironment :: IORef O.Environment -> [N.Identifier] -> [O.Object] -> IO (IORef O.Environment)
+extendEnvironment env params args = do
+    let funcEnv = Map.fromList (zip (map show params) args)
+    newIORef $ O.Env funcEnv (Just env)
 
 evalPrefixExpression :: String -> O.Object -> ProgramState O.Object
 evalPrefixExpression "!" obj = evalBangOperatorExpression obj

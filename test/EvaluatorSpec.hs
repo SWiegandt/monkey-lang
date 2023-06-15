@@ -21,6 +21,9 @@ spec = do
     describe "EvalReturnStatements" testEvalReturnStatements
     describe "EvalErrorHandling" testErrorHandling
     describe "EvalLetStatements" testLetStatements
+    describe "EvalFunctionObject" testFunctionObject
+    describe "EvalFunctionApplication" testFunctionApplication
+    describe "EvalFunctionClosures" testClosures
 
 testEval :: String -> IO E.ProgramOutput
 testEval program = do
@@ -50,15 +53,18 @@ testEvalIntegerExpression = do
         env <- runIO $ newIORef (O.Env Map.empty Nothing)
         it "should evaluate integer expressions" $ testEval input >>= testIntegerObject output
 
+inspect :: E.ProgramOutput -> String
+inspect o = show $ O.inspect <$> o
+
 testIntegerObject :: Integer -> E.ProgramOutput -> Expectation
 testIntegerObject int obj = case obj of
     Right (O.OInt v) -> v `shouldBe` int
-    _ -> expectationFailure $ printf "Expected integer object, got %s" (show obj)
+    _ -> expectationFailure $ printf "Expected integer object, got %s" (inspect obj)
 
 testBooleanObject :: Bool -> E.ProgramOutput -> Expectation
 testBooleanObject bool obj = case obj of
     Right (O.OBool v) -> v `shouldBe` bool
-    _ -> expectationFailure $ printf "Expected boolean object, got %s" (show obj)
+    _ -> expectationFailure $ printf "Expected boolean object, got %s" (inspect obj)
 
 testEvalBooleanExpression = do
     let tests =
@@ -115,7 +121,7 @@ testNullObject :: E.ProgramOutput -> Expectation
 testNullObject obj =
     when (obj /= Right O.ONull) $
         expectationFailure $
-            printf "Expected null object, got %s" (show obj)
+            printf "Expected null object, got %s" (inspect obj)
 
 testEvalReturnStatements = do
     let tests =
@@ -165,7 +171,7 @@ testErrorHandling = do
             result <- testEval input
             case result of
                 Left error -> error `shouldBe` output
-                _ -> expectationFailure $ printf "Expected error message %s, got %s" output (show result)
+                _ -> expectationFailure $ printf "Expected error message %s, got %s" output (inspect result)
 
 testLetStatements = do
     let tests =
@@ -177,3 +183,41 @@ testLetStatements = do
 
     forM_ tests $ \(input, output) -> do
         it "should evaluate let statements" $ testEval input >>= testIntegerObject output
+
+testFunctionObject = do
+    let test = "fn(x) { x + 2 };"
+
+    it "should evaluate function objects" $ do
+        result <- testEval test
+
+        case result of
+            Right (O.OFunction params body _) -> do
+                length params `shouldBe` 1
+                show (head params) `shouldBe` "x"
+                show body `shouldBe` "(x + 2)"
+            _ -> expectationFailure $ printf "Expected function object, got %s" (inspect result)
+
+testFunctionApplication = do
+    let tests =
+            [ ("let identity = fn(x) { x; }; identity(5);", 5),
+              ("let identity = fn(x) { return x; }; identity(5);", 5),
+              ("let double = fn(x) { x * 2; }; double(5);", 10),
+              ("let add = fn(x, y) { x + y; }; add(5, 5);", 10),
+              ("let add = fn(x, y) { x + y; }; add(5 + 5, add(5, 5));", 20),
+              ("fn(x) { x; }(5)", 5)
+            ]
+
+    forM_ tests $ \(input, output) -> do
+        it "can apply functions" $ testEval input >>= testIntegerObject output
+
+testClosures = do
+    let test =
+            unlines
+                [ "let newAdder = fn(x) {",
+                  "  fn(y) { x + y };",
+                  "};",
+                  "let addTwo = newAdder(2);",
+                  "addTwo(2);"
+                ]
+
+    it "handles closures" $ testEval test >>= testIntegerObject 4

@@ -18,9 +18,6 @@ Env e o !? s = case e Map.!? s of
         Just ref -> readIORef ref >>= (!? s)
         _ -> return Nothing
 
-instance Show Environment where
-    show (Env e _) = show e
-
 data ObjectType = IntegerType | BooleanType | NullType | ReturnType | FunctionType deriving (Show, Eq)
 
 data Object
@@ -28,8 +25,7 @@ data Object
     | OBool Bool
     | ONull
     | OReturn Object
-    | OFunction [N.Identifier] N.Block Environment
-    deriving (Show)
+    | OFunction [N.Identifier] N.Block (IORef Environment)
 
 instance Eq Object where
     OInt n == OInt m = n == m
