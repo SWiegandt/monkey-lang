@@ -1,13 +1,15 @@
 module EvaluatorSpec where
 
 import Control.Monad (forM_, when)
+import Control.Monad.Except (runExceptT)
 import Control.Monad.State (evalStateT)
+import Data.IORef (newIORef)
 import qualified Data.Map as Map
 import qualified Evaluator as E
 import qualified Lexer as T
 import qualified Object as O
 import qualified Parser as P
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, runIO, shouldBe)
 import Text.Printf (printf)
 
 spec :: Spec
@@ -20,8 +22,10 @@ spec = do
     describe "EvalErrorHandling" testErrorHandling
     describe "EvalLetStatements" testLetStatements
 
-testEval :: String -> E.ProgramOutput
-testEval = (`evalStateT` Map.empty) . E.eval . fst . P.runParser . T.runLexer
+testEval :: String -> IO E.ProgramOutput
+testEval program = do
+    env <- newIORef (O.Env Map.empty Nothing)
+    runExceptT . (`evalStateT` env) . E.eval . fst . P.runParser . T.runLexer $ program
 
 testEvalIntegerExpression = do
     let tests =
@@ -43,12 +47,18 @@ testEvalIntegerExpression = do
             ]
 
     forM_ tests $ \(input, output) -> do
-        it "should evaluate integer expressions" $ testIntegerObject (testEval input) output
+        env <- runIO $ newIORef (O.Env Map.empty Nothing)
+        it "should evaluate integer expressions" $ testEval input >>= testIntegerObject output
 
-testIntegerObject :: E.ProgramOutput -> Integer -> Expectation
-testIntegerObject obj int = case obj of
+testIntegerObject :: Integer -> E.ProgramOutput -> Expectation
+testIntegerObject int obj = case obj of
     Right (O.OInt v) -> v `shouldBe` int
     _ -> expectationFailure $ printf "Expected integer object, got %s" (show obj)
+
+testBooleanObject :: Bool -> E.ProgramOutput -> Expectation
+testBooleanObject bool obj = case obj of
+    Right (O.OBool v) -> v `shouldBe` bool
+    _ -> expectationFailure $ printf "Expected boolean object, got %s" (show obj)
 
 testEvalBooleanExpression = do
     let tests =
@@ -74,19 +84,14 @@ testEvalBooleanExpression = do
             ]
 
     forM_ tests $ \(input, output) -> do
-        it "should evaluate boolean expressions" $ testBooleanObject (testEval input) output
-
-testBooleanObject :: E.ProgramOutput -> Bool -> Expectation
-testBooleanObject obj bool = case obj of
-    Right (O.OBool v) -> v `shouldBe` bool
-    _ -> expectationFailure $ printf "Expected boolean object, got %s" (show obj)
+        it "should evaluate boolean expressions" $ testEval input >>= testBooleanObject output
 
 testEvalBangOperator = do
     let inputs = ["!true", "!false", "!5", "!!true", "!!false", "!!5"]
         outputs = [False, True, False, True, False, True]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        it "should evaluate bang expressions" $ testBooleanObject (testEval input) output
+        it "should evaluate bang expressions" $ testEval input >>= testBooleanObject output
 
 testEvalIfElseExpressions = do
     let tests =
@@ -101,9 +106,10 @@ testEvalIfElseExpressions = do
 
     forM_ tests $ \(input, output) -> do
         it "should evaluate if expressions" $ do
+            result <- testEval input
             case output of
-                Just v -> testIntegerObject (testEval input) v
-                _ -> testNullObject (testEval input)
+                Just v -> testIntegerObject v result
+                _ -> testNullObject result
 
 testNullObject :: E.ProgramOutput -> Expectation
 testNullObject obj =
@@ -130,7 +136,7 @@ testEvalReturnStatements = do
             ]
 
     forM_ tests $ \(input, output) -> do
-        it "should evaluate return statements" $ testIntegerObject (testEval input) output
+        it "should evaluate return statements" $ testEval input >>= testIntegerObject output
 
 testErrorHandling = do
     let tests =
@@ -156,10 +162,10 @@ testErrorHandling = do
 
     forM_ tests $ \(input, output) -> do
         it "should handle errors" $ do
-            let evaluation = testEval input
-            case evaluation of
+            result <- testEval input
+            case result of
                 Left error -> error `shouldBe` output
-                _ -> expectationFailure $ printf "Expected error message %s, got %s" output (show evaluation)
+                _ -> expectationFailure $ printf "Expected error message %s, got %s" output (show result)
 
 testLetStatements = do
     let tests =
@@ -170,4 +176,4 @@ testLetStatements = do
             ]
 
     forM_ tests $ \(input, output) -> do
-        it "should evaluate let statements" $ testIntegerObject (testEval input) output
+        it "should evaluate let statements" $ testEval input >>= testIntegerObject output
