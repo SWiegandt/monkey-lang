@@ -1,6 +1,7 @@
 module Nodes where
 
 import Data.List (intercalate)
+import qualified Data.Map as Map
 import Text.Printf (printf)
 import qualified Tokens as T
 
@@ -11,7 +12,7 @@ data Identifier = Identifier
     { identToken :: T.Token,
       identValue :: String
     }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Node Identifier where
     tokenLiteral = T.literal . identToken
@@ -30,8 +31,9 @@ data Expression
     | FunctionExpression T.Token [Identifier] Block
     | CallExpression T.Token Expression [Expression]
     | ArrayExpression T.Token [Expression]
+    | HashExpression T.Token (Map.Map Expression Expression)
     | IndexExpression T.Token Expression Expression
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Node Expression where
     tokenLiteral (IdentifierExpression i) = tokenLiteral i
@@ -44,6 +46,7 @@ instance Node Expression where
     tokenLiteral (FunctionExpression t _ _) = T.literal t
     tokenLiteral (CallExpression t _ _) = T.literal t
     tokenLiteral (ArrayExpression t _) = T.literal t
+    tokenLiteral (HashExpression t _) = T.literal t
     tokenLiteral (IndexExpression t _ _) = T.literal t
 
 instance Show Expression where
@@ -61,10 +64,15 @@ instance Show Expression where
             (show body)
     show c@(CallExpression _ fn args) = printf "%s(%s)" (show fn) (intercalate ", " $ map show args)
     show (ArrayExpression _ elements) = printf "[%s]" (intercalate ", " $ map show elements)
+    show (HashExpression _ map) =
+        printf "{%s}"
+            . intercalate ", "
+            . Map.foldMapWithKey (\k v -> [printf "%s:%s" (show k) (show v)])
+            $ map
     show (IndexExpression _ lhs rhs) = printf "(%s[%s])" (show lhs) (show rhs)
     show e = tokenLiteral e
 
-newtype Block = Block [Statement] deriving (Eq)
+newtype Block = Block [Statement] deriving (Eq, Ord)
 
 instance Show Block where
     show (Block stmts) = concatMap show stmts
@@ -83,7 +91,7 @@ data Statement
         { expressionToken :: T.Token,
           expression :: Expression
         }
-    deriving (Eq)
+    deriving (Eq, Ord)
 
 instance Node Statement where
     tokenLiteral (LetStmt t _ _) = T.literal t

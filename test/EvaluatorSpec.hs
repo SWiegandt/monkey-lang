@@ -28,10 +28,12 @@ spec = do
     describe "EvalBuiltinFunctions" testBuiltinFunctions
     describe "EvalArrayExpression" testArrayExpressions
     describe "EvalIndexExpression" testIndexExpressions
+    describe "EvalHashExpression" testHashExpressions
+    describe "EvalHashIndexExpression" testHashIndexExpressions
 
 testEval :: String -> IO E.ProgramOutput
 testEval program = do
-    env <- newIORef (O.Env Map.empty Nothing)
+    env <- O.EnvRef <$> newIORef (O.Env Map.empty Nothing)
     runExceptT . (`evalStateT` env) . E.eval . fst . P.runParser . T.runLexer $ program
 
 inspect :: E.ProgramOutput -> String
@@ -182,7 +184,8 @@ testErrorHandling = do
                   "unknown operator: BooleanType + BooleanType"
                 ),
               ("foobar", "identifier not found: foobar"),
-              ("\"hello\" - \"world\"", "unknown operator: StringType - StringType")
+              ("\"hello\" - \"world\"", "unknown operator: StringType - StringType"),
+              ("{\"name\": \"Monkey\"}[fn(x) { x }];", "unusable as hash key: FunctionType")
             ]
 
     forM_ tests $ \(input, output) -> do
@@ -292,3 +295,33 @@ testIndexExpressions = do
         case output of
             Just n -> testIntegerObject n result
             Nothing -> testNullObject result
+
+testHashExpressions = do
+    let input = "let two = \"two\"; {\"one\": 10 - 9, two: 1 + 1, \"thr\" + \"ee\": 6 / 2, 4: 4, true: 5, false: 6}"
+
+    it "evaluates hash expression" $ do
+        result <- testEval input
+        case result of
+            Right (O.Hash map) -> do
+                Map.size map `shouldBe` 6
+                map Map.! O.String "one" `shouldBe` O.Int 1
+            Right o -> expectationFailure $ printf "Expected hash object, got %s" (O.inspect o)
+            Left err -> expectationFailure $ printf "Got error %s" err
+
+testHashIndexExpressions = do
+    let tests =
+            [ ("{\"foo\": 5}[\"foo\"]", Just 5),
+              ("{\"foo\": 5}[\"bar\"]", Nothing),
+              ("let key = \"foo\"; {\"foo\": 5}[key]", Just 5),
+              ("{}[\"foo\"]", Nothing),
+              ("{5: 5}[5]", Just 5),
+              ("{true: 5}[true]", Just 5),
+              ("{false: 5}[false]", Just 5)
+            ]
+
+    forM_ tests $ \(input, output) -> do
+        it "evaluates hash index expressions" $ do
+            result <- testEval input
+            case output of
+                Just n -> result `shouldBe` Right (O.Int n)
+                Nothing -> result `shouldBe` Right O.Null

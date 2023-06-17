@@ -5,6 +5,7 @@ module ParserSpec (spec) where
 import Control.Monad (forM_, void, when)
 import Control.Monad.State (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
+import qualified Data.Map as Map
 import Lexer (runLexer)
 import qualified Nodes as N
 import Parser (runParser)
@@ -32,6 +33,7 @@ spec = do
     describe "CallExpression" testCallExpression
     describe "ArrayExpression" testArrayExpression
     describe "IndexExpression" testIndexExpression
+    describe "HashExpression" testHashExpression
 
 checkErrorLog log = it "reports no errors" $ log `shouldSatisfy` null
 
@@ -430,3 +432,35 @@ testIndexExpression = do
                 testInfixExpression rhs (IntExpectation 1) "+" (IntExpectation 1)
             _ -> expectationFailure $ printf "Expected ArrayExpression, got %s" (show statement)
         _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
+testHashExpression = do
+    let tests =
+            [   ( "{\"one\": 1, \"two\": 2, \"three\": 3}",
+                  Map.fromList
+                    [ ("one", void . runMaybeT . (`testIntegerLiteral` 1)),
+                      ("two", void . runMaybeT . (`testIntegerLiteral` 2)),
+                      ("three", void . runMaybeT . (`testIntegerLiteral` 3))
+                    ]
+                ),
+              ("{}", Map.empty),
+                ( "{\"one\": 0 + 1, \"two\": 10 - 8, \"three\": 15 / 5}",
+                  Map.fromList
+                    [ ("one", \e -> testInfixExpression e (IntExpectation 0) "+" (IntExpectation 1)),
+                      ("two", \e -> testInfixExpression e (IntExpectation 10) "-" (IntExpectation 8)),
+                      ("three", \e -> testInfixExpression e (IntExpectation 15) "/" (IntExpectation 5))
+                    ]
+                )
+            ]
+
+    forM_ tests $ \(input, testFns) -> do
+        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+        checkErrorLog log
+
+        it "should parse hash expression" $ case statement of
+            N.ExpressionStmt _ expr -> case expr of
+                N.HashExpression _ map -> do
+                    Map.size map `shouldBe` length testFns
+                    forM_ (Map.keys map) $ \key -> (testFns Map.! show key) (map Map.! key)
+                _ -> expectationFailure $ printf "Expected HashExpression, got %s" (show statement)
+            _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)

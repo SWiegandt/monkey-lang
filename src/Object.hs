@@ -10,7 +10,7 @@ import Text.Printf (printf)
 
 data Environment = Env (Map.Map String Object) (Maybe (IORef Environment))
 
-type ProgramState = StateT (IORef Environment) (ExceptT String IO)
+type ProgramState = StateT EnvironmentRef (ExceptT String IO)
 
 insert :: String -> Object -> Environment -> Environment
 insert key value (Env e o) = Env (Map.insert key value e) o
@@ -22,6 +22,22 @@ Env e o !? s = case e Map.!? s of
         Just ref -> readIORef ref >>= (!? s)
         _ -> return Nothing
 
+newtype EnvironmentRef = EnvRef {unRef :: IORef Environment}
+
+instance Eq EnvironmentRef where
+    _ == _ = True
+
+instance Ord EnvironmentRef where
+    compare l r = EQ
+
+data BuiltinFunc = BuiltinFunc String Int [[Maybe ObjectType]] ([Object] -> IO Object)
+
+instance Eq BuiltinFunc where
+    BuiltinFunc leftName _ _ _ == BuiltinFunc rightName _ _ _ = leftName == rightName
+
+instance Ord BuiltinFunc where
+    compare l r = EQ
+
 data ObjectType
     = IntegerType
     | BooleanType
@@ -31,6 +47,7 @@ data ObjectType
     | FunctionType
     | BuiltinType
     | ArrayType
+    | HashType
     deriving (Show, Eq)
 
 data Object
@@ -39,32 +56,34 @@ data Object
     | String String
     | Null
     | Return Object
-    | Function [N.Identifier] N.Block (IORef Environment)
-    | Builtin Int [[Maybe ObjectType]] ([Object] -> IO Object)
+    | Function [N.Identifier] N.Block EnvironmentRef
+    | Builtin BuiltinFunc
     | Array [Object]
+    | Hash (Map.Map Object Object)
+    deriving (Eq, Ord)
 
-instance Eq Object where
-    Int n == Int m = n == m
-    Bool p == Bool q = p == q
-    String l == String r = l == r
-    Null == Null = True
-    Return l == Return r = l == r
-    Function pl bl _ == Function pr br _ = pl == pr && bl == br
-    _ == _ = False
+instance Show Object where
+    show (Int v) = show v
+    show (Bool v) = show v
+    show (String v) = v
+    show Null = "null"
+    show (Return o) = inspect o
+    show (Function params body _) = printf "fn(%s) {\n%s\n}" (intercalate ", " $ map show params) (show body)
+    show (Builtin {}) = "builtin function"
+    show (Array elements) = printf "[%s]" (intercalate ", " $ map inspect elements)
+    show (Hash map) =
+        printf "{%s}"
+            . intercalate ", "
+            . Map.foldMapWithKey (\k v -> [printf "%s:%s" (show k) (inspect v)])
+            $ map
 
 class IsObject a where
     inspect :: a -> String
     otype :: a -> ObjectType
+    keyable :: a -> Bool
 
 instance IsObject Object where
-    inspect (Int v) = show v
-    inspect (Bool v) = show v
-    inspect (String v) = v
-    inspect Null = "null"
-    inspect (Return o) = inspect o
-    inspect (Function params body _) = printf "fn(%s) {\n%s\n}" (intercalate ", " $ map show params) (show body)
-    inspect (Builtin {}) = "builtin function"
-    inspect (Array elements) = printf "[%s]" $ intercalate ", " (map inspect elements)
+    inspect = show
 
     otype (Int _) = IntegerType
     otype (Bool _) = BooleanType
@@ -74,3 +93,9 @@ instance IsObject Object where
     otype (Function {}) = FunctionType
     otype (Builtin {}) = BuiltinType
     otype (Array {}) = ArrayType
+    otype (Hash {}) = HashType
+
+    keyable (Int _) = True
+    keyable (String _) = True
+    keyable (Bool _) = True
+    keyable _ = False

@@ -32,6 +32,6 @@ data TokenType
     | Else
     | Return
     | String
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
-data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq)
+data Token = Token {ttype :: TokenType, literal :: String} deriving (Show, Eq, Ord)

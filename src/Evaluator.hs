@@ -2,11 +2,13 @@ module Evaluator where
 
 import qualified Builtins as B
 import Control.Applicative ((<|>))
+import Control.Monad (forM, unless)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadIO (liftIO), MonadState (get, put), gets)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (genericLength)
 import qualified Data.Map as Map
+import Data.Maybe (fromMaybe)
 import qualified Nodes as N
 import qualified Object as O
 import Text.Printf (printf)
@@ -36,14 +38,14 @@ evalStatements unwrap (s : ss) = do
 evalStatement :: N.Statement -> O.ProgramState O.Object
 evalStatement (N.LetStmt _ (N.Identifier _ name) value) = do
     evaluation <- evalExpression value
-    env <- get
+    O.EnvRef env <- get
     liftIO $ modifyIORef' env (O.insert name evaluation)
     return O.Null
 evalStatement (N.ReturnStmt _ expr) = O.Return <$> evalExpression expr
 evalStatement (N.ExpressionStmt _ expr) = evalExpression expr
 
 readEnv :: O.ProgramState O.Environment
-readEnv = get >>= liftIO . readIORef
+readEnv = get >>= liftIO . readIORef . O.unRef
 
 evalExpression :: N.Expression -> O.ProgramState O.Object
 evalExpression (N.IntegerExpression _ v) = return $ O.Int v
@@ -68,9 +70,10 @@ evalExpression (N.CallExpression _ funcExpr argExprs) = do
     applyFunction func args
 evalExpression (N.ArrayExpression _ elements) = O.Array <$> mapM evalExpression elements
 evalExpression (N.IndexExpression _ lhs rhs) = do
-    array <- evalExpression lhs
+    collection <- evalExpression lhs
     index <- evalExpression rhs
-    evalIndexExpression array index
+    evalIndexExpression collection index
+evalExpression (N.HashExpression _ map) = O.Hash . Map.fromList <$> forM (Map.toList map) (uncurry evalHashKeyValue)
 
 locally :: (MonadState s m) => s -> m a -> m a
 locally s m = do
@@ -87,10 +90,10 @@ applyFunction func@(O.Function params body env) args = do
 applyFunction builtin@(O.Builtin {}) args = B.runBuiltin builtin args
 applyFunction o _ = throwError $ printf "not a function: %s" (O.inspect o)
 
-extendEnvironment :: IORef O.Environment -> [N.Identifier] -> [O.Object] -> IO (IORef O.Environment)
-extendEnvironment env params args = do
+extendEnvironment :: O.EnvironmentRef -> [N.Identifier] -> [O.Object] -> IO O.EnvironmentRef
+extendEnvironment (O.EnvRef env) params args = do
     let funcEnv = Map.fromList (zip (map show params) args)
-    newIORef $ O.Env funcEnv (Just env)
+    O.EnvRef <$> newIORef (O.Env funcEnv (Just env))
 
 evalPrefixExpression :: String -> O.Object -> O.ProgramState O.Object
 evalPrefixExpression "!" obj = evalBangOperatorExpression obj
@@ -145,7 +148,17 @@ evalIndexExpression :: O.Object -> O.Object -> O.ProgramState O.Object
 evalIndexExpression (O.Array elements) (O.Int n)
     | n < 0 || n >= genericLength elements = return O.Null
     | otherwise = return $ elements !! fromInteger n
+evalIndexExpression (O.Hash map) o
+    | O.keyable o = return . fromMaybe O.Null $ map Map.!? o
+    | otherwise = throwError $ printf "unusable as hash key: %s" (show $ O.otype o)
 evalIndexExpression o _ = throwError $ printf "index operator not supported: %s" (show $ O.otype o)
+
+evalHashKeyValue :: N.Expression -> N.Expression -> O.ProgramState (O.Object, O.Object)
+evalHashKeyValue k v = do
+    key <- evalExpression k
+    unless (O.keyable key) $ throwError $ printf "unusable as hash key: %s" (show $ O.otype key)
+    value <- evalExpression v
+    return (key, value)
 
 isTruthy :: O.Object -> Bool
 isTruthy O.Null = False

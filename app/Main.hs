@@ -3,7 +3,7 @@ module Main where
 import Control.Monad (void)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State (StateT (runStateT))
-import Data.IORef (IORef, newIORef)
+import Data.IORef (newIORef)
 import qualified Data.Map as Map
 import qualified Evaluator as E
 import Lexer (runLexer)
@@ -13,13 +13,13 @@ import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
 
-loadStdLib :: IORef O.Environment -> IO ()
+loadStdLib :: O.EnvironmentRef -> IO ()
 loadStdLib env = do
     stdLib <- readFile "/Users/sebastianwiegandt/git/monkey-lang/lib/std.monkey"
     let (p, _) = runParser . runLexer $ stdLib
     void . runExceptT . (`runStateT` env) . E.eval $ p
 
-repl :: IORef O.Environment -> IO ()
+repl :: O.EnvironmentRef -> IO ()
 repl env = do
     putStr ">> " >> hFlush stdout
     line <- getLine
@@ -39,6 +39,6 @@ main = do
     user <- getEnv "USER"
     printf "Hello %s! This is the Monkey programming language!\n" user
     putStrLn "Feel free to type in commands"
-    env <- newIORef (O.Env Map.empty Nothing)
+    env <- O.EnvRef <$> newIORef (O.Env Map.empty Nothing)
     loadStdLib env
     repl env
