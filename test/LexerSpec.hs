@@ -33,7 +33,11 @@ testRunLexer =
                   "}",
                   "",
                   "10 == 10;",
-                  "10 != 9;"
+                  "10 != 9;",
+                  "\"foobar\"",
+                  "\"foo bar\"",
+                  "[1, 2];",
+                  "{\"foo\": \"bar\"}"
                 ]
         expected =
             [ T.Token T.Let "let",
@@ -109,5 +113,18 @@ testRunLexer =
               T.Token T.NotEqual "!=",
               T.Token T.Int "9",
               T.Token T.Semicolon ";",
+              T.Token T.String "foobar",
+              T.Token T.String "foo bar",
+              T.Token T.LBracket "[",
+              T.Token T.Int "1",
+              T.Token T.Comma ",",
+              T.Token T.Int "2",
+              T.Token T.RBracket "]",
+              T.Token T.Semicolon ";",
+              T.Token T.LBrace "{",
+              T.Token T.String "foo",
+              T.Token T.Colon ":",
+              T.Token T.String "bar",
+              T.Token T.RBrace "}",
               T.Token T.EOF ""
             ]

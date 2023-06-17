@@ -1,5 +1,6 @@
 module Main where
 
+import Control.Monad (void)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State (StateT (runStateT))
 import Data.IORef (IORef, newIORef)
@@ -12,6 +13,12 @@ import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
 
+loadStdLib :: IORef O.Environment -> IO ()
+loadStdLib env = do
+    stdLib <- readFile "/Users/sebastianwiegandt/git/monkey-lang/lib/std.monkey"
+    let (p, _) = runParser . runLexer $ stdLib
+    void . runExceptT . (`runStateT` env) . E.eval $ p
+
 repl :: IORef O.Environment -> IO ()
 repl env = do
     putStr ">> " >> hFlush stdout
@@ -19,9 +26,10 @@ repl env = do
     let (p, log) = runParser . runLexer $ line
     if null log
         then do
-            result <- runExceptT . (`runStateT` env) $ E.eval p
+            result <- runExceptT . (`runStateT` env) . E.eval $ p
             case result of
                 Left s -> putStrLn s
+                Right (O.Null, _) -> return ()
                 Right (o, env) -> putStrLn (O.inspect o)
         else mapM_ (printf "\t%s\n") log
     repl env
@@ -32,4 +40,5 @@ main = do
     printf "Hello %s! This is the Monkey programming language!\n" user
     putStrLn "Feel free to type in commands"
     env <- newIORef (O.Env Map.empty Nothing)
+    loadStdLib env
     repl env

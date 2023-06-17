@@ -19,25 +19,29 @@ nextToken = do
     case s of
         [] -> return $ T.Token T.EOF ""
         (c : s') -> do
-            let peekT = (,tail s') <$> peekToken c s'
-                charT = (,s') <$> charToken c
-                stringT = first stringToken <$> identifier c s'
-                numberT = numberToken c s'
+            let peek = (,tail s') <$> peekToken c s'
+                char = (,s') <$> charToken c
+                ident = first identToken <$> identifier c s'
+                number = numberToken c s'
+                string = stringToken c s'
                 (token, rest) =
                     fromMaybe
                         (T.Token T.Illegal [c], s')
-                        (peekT <|> charT <|> stringT <|> numberT)
+                        (peek <|> char <|> ident <|> number <|> string)
             put rest
             return token
 
 charType :: Char -> Maybe T.TokenType
 charType ';' = Just T.Semicolon
+charType ':' = Just T.Colon
 charType '(' = Just T.LParen
 charType ')' = Just T.RParen
 charType ',' = Just T.Comma
 charType '+' = Just T.Plus
 charType '{' = Just T.LBrace
 charType '}' = Just T.RBrace
+charType '[' = Just T.LBracket
+charType ']' = Just T.RBracket
 charType '=' = Just T.Assign
 charType '!' = Just T.Bang
 charType '-' = Just T.Minus
@@ -76,8 +80,20 @@ keywordType "else" = Just T.Else
 keywordType "return" = Just T.Return
 keywordType _ = Nothing
 
-stringToken :: String -> T.Token
-stringToken s = maybe (T.Token T.Ident s) (`T.Token` s) (keywordType s)
+identToken :: String -> T.Token
+identToken s = maybe (T.Token T.Ident s) (`T.Token` s) (keywordType s)
+
+splitAtChar :: Char -> String -> Maybe (String, String)
+splitAtChar = go ""
+    where
+        go _ _ "" = Nothing
+        go accum c (c' : rest)
+            | c == c' = Just (reverse accum, rest)
+            | otherwise = go (c' : accum) c rest
+
+stringToken :: Char -> String -> Maybe (T.Token, String)
+stringToken '"' s = first (T.Token T.String) <$> splitAtChar '"' s
+stringToken _ _ = Nothing
 
 untilEOF :: State String [T.Token]
 untilEOF = do

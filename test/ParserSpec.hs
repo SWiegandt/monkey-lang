@@ -20,6 +20,7 @@ spec = do
     describe "IdentifierExpr" testIdentifierExpression
     describe "IntegerExpr" testIntegerLiteralExpression
     describe "BooleanExpr" testBooleanExpression
+    describe "StringExpr" testStringLiteralExpression
     describe "prefixParse" testPrefixParse
     describe "infixParse" $ do
         testInfixParse
@@ -29,6 +30,8 @@ spec = do
     describe "FunctionExpr" testFunctionExpression
     describe "Function parameters" testFunctionParameterParsing
     describe "CallExpression" testCallExpression
+    describe "ArrayExpression" testArrayExpression
+    describe "IndexExpression" testIndexExpression
 
 checkErrorLog log = it "reports no errors" $ log `shouldSatisfy` null
 
@@ -146,6 +149,27 @@ testBooleanExpression = do
                 _ -> expectationFailure $ printf "Expected BooleanExpr, got %s" (show expr)
             _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
 
+testStringLiteralExpression = do
+    let input = "\"hello world\""
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+    checkErrorLog log
+
+    it "should have the correct number of expressions" $ length stmts `shouldBe` 1
+
+    it "should parse string literal expressions" $ case statement of
+        N.ExpressionStmt _ expr -> case expr of
+            e@(N.StringExpression t v) -> do
+                when (v /= "hello world") $
+                    expectationFailure $
+                        printf "Expected 'hello world' value, got %s" v
+
+                when (N.tokenLiteral e /= "hello world") $
+                    expectationFailure $
+                        printf "Expected 'hello world' literal, got %s" (N.tokenLiteral e)
+            _ -> expectationFailure $ printf "Expected StringLiteralExpr, got %s" (show expr)
+        _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
 testPrefixParse = do
     let inputs = ["!5;", "-15;"]
         expecteds = [("!", 5), ("-", 15)]
@@ -258,7 +282,8 @@ testOperatorPrecedence = do
               ["!(true == true)", "(!(true == true))"],
               ["a + add(b * c) + d", "((a + add((b * c))) + d)"],
               ["add(a, b, 1, 2 * 3, 4 + 5, add(6, 7 * 8))", "add(a, b, 1, (2 * 3), (4 + 5), add(6, (7 * 8)))"],
-              ["add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"]
+              ["add(a + b + c * d / f + g)", "add((((a + b) + ((c * d) / f)) + g))"],
+              ["add(a * b[2], b[1], 2 * [1, 2][1])", "add((a * (b[2])), (b[1]), (2 * ([1, 2][1])))"]
             ]
 
     forM_ inputs $ \[input, output] -> do
@@ -370,4 +395,38 @@ testCallExpression = do
                 testInfixExpression (args !! 1) (IntExpectation 2) "*" (IntExpectation 3)
                 testInfixExpression (args !! 2) (IntExpectation 4) "+" (IntExpectation 5)
             _ -> expectationFailure $ printf "Expected CallExpression, got %s" (show expr)
+        _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
+testArrayExpression = do
+    let input = "[1, 2 * 2, 3 + 3]"
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+    checkErrorLog log
+
+    it "should contain one statement" $ length stmts `shouldBe` 1
+
+    it "should parse array expressions" $ case statement of
+        N.ExpressionStmt _ expr -> case expr of
+            N.ArrayExpression _ elements -> do
+                length elements `shouldBe` 3
+                void . runMaybeT $ testIntegerLiteral (head elements) 1
+                testInfixExpression (elements !! 1) (IntExpectation 2) "*" (IntExpectation 2)
+                testInfixExpression (elements !! 2) (IntExpectation 3) "+" (IntExpectation 3)
+            _ -> expectationFailure $ printf "Expected ArrayExpression, got %s" (show statement)
+        _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)
+
+testIndexExpression = do
+    let input = "myArray[1 + 1]"
+        (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+
+    checkErrorLog log
+
+    it "should contain one statement" $ length stmts `shouldBe` 1
+
+    it "should parse index expressions" $ case statement of
+        N.ExpressionStmt _ expr -> case expr of
+            N.IndexExpression _ lhs rhs -> do
+                testIdentifier lhs "myArray"
+                testInfixExpression rhs (IntExpectation 1) "+" (IntExpectation 1)
+            _ -> expectationFailure $ printf "Expected ArrayExpression, got %s" (show statement)
         _ -> expectationFailure $ printf "Expected ExpressionStmt, got %s" (show statement)

@@ -16,6 +16,7 @@ spec :: Spec
 spec = do
     describe "EvalIntegerExpression" testEvalIntegerExpression
     describe "EvalBooleanExpression" testEvalBooleanExpression
+    describe "EvalStringExpression" testEvalStringExpression
     describe "EvalBangOperator" testEvalBangOperator
     describe "EvalIfExpression" testEvalIfElseExpressions
     describe "EvalReturnStatements" testEvalReturnStatements
@@ -24,11 +25,22 @@ spec = do
     describe "EvalFunctionObject" testFunctionObject
     describe "EvalFunctionApplication" testFunctionApplication
     describe "EvalFunctionClosures" testClosures
+    describe "EvalBuiltinFunctions" testBuiltinFunctions
+    describe "EvalArrayExpression" testArrayExpressions
+    describe "EvalIndexExpression" testIndexExpressions
 
 testEval :: String -> IO E.ProgramOutput
 testEval program = do
     env <- newIORef (O.Env Map.empty Nothing)
     runExceptT . (`evalStateT` env) . E.eval . fst . P.runParser . T.runLexer $ program
+
+inspect :: E.ProgramOutput -> String
+inspect o = show $ O.inspect <$> o
+
+testIntegerObject :: Integer -> E.ProgramOutput -> Expectation
+testIntegerObject int obj = case obj of
+    Right (O.Int v) -> v `shouldBe` int
+    _ -> expectationFailure $ printf "Expected integer object, got %s" (inspect obj)
 
 testEvalIntegerExpression = do
     let tests =
@@ -53,17 +65,9 @@ testEvalIntegerExpression = do
         env <- runIO $ newIORef (O.Env Map.empty Nothing)
         it "should evaluate integer expressions" $ testEval input >>= testIntegerObject output
 
-inspect :: E.ProgramOutput -> String
-inspect o = show $ O.inspect <$> o
-
-testIntegerObject :: Integer -> E.ProgramOutput -> Expectation
-testIntegerObject int obj = case obj of
-    Right (O.OInt v) -> v `shouldBe` int
-    _ -> expectationFailure $ printf "Expected integer object, got %s" (inspect obj)
-
 testBooleanObject :: Bool -> E.ProgramOutput -> Expectation
 testBooleanObject bool obj = case obj of
-    Right (O.OBool v) -> v `shouldBe` bool
+    Right (O.Bool v) -> v `shouldBe` bool
     _ -> expectationFailure $ printf "Expected boolean object, got %s" (inspect obj)
 
 testEvalBooleanExpression = do
@@ -92,6 +96,20 @@ testEvalBooleanExpression = do
     forM_ tests $ \(input, output) -> do
         it "should evaluate boolean expressions" $ testEval input >>= testBooleanObject output
 
+testStringObject :: String -> E.ProgramOutput -> Expectation
+testStringObject str obj = case obj of
+    Right (O.String v) -> v `shouldBe` str
+    _ -> expectationFailure $ printf "Expected string object, got %s" (inspect obj)
+
+testEvalStringExpression = do
+    let tests =
+            [ ("\"hello world\"", "hello world"),
+              ("\"hello\" + \" \" + \"world\"", "hello world")
+            ]
+
+    forM_ tests $ \(input, output) -> do
+        it "should evaluate string expressions" $ testEval input >>= testStringObject output
+
 testEvalBangOperator = do
     let inputs = ["!true", "!false", "!5", "!!true", "!!false", "!!5"]
         outputs = [False, True, False, True, False, True]
@@ -119,7 +137,7 @@ testEvalIfElseExpressions = do
 
 testNullObject :: E.ProgramOutput -> Expectation
 testNullObject obj =
-    when (obj /= Right O.ONull) $
+    when (obj /= Right O.Null) $
         expectationFailure $
             printf "Expected null object, got %s" (inspect obj)
 
@@ -163,7 +181,8 @@ testErrorHandling = do
                     ],
                   "unknown operator: BooleanType + BooleanType"
                 ),
-              ("foobar", "identifier not found: foobar")
+              ("foobar", "identifier not found: foobar"),
+              ("\"hello\" - \"world\"", "unknown operator: StringType - StringType")
             ]
 
     forM_ tests $ \(input, output) -> do
@@ -191,7 +210,7 @@ testFunctionObject = do
         result <- testEval test
 
         case result of
-            Right (O.OFunction params body _) -> do
+            Right (O.Function params body _) -> do
                 length params `shouldBe` 1
                 show (head params) `shouldBe` "x"
                 show body `shouldBe` "(x + 2)"
@@ -221,3 +240,55 @@ testClosures = do
                 ]
 
     it "handles closures" $ testEval test >>= testIntegerObject 4
+
+testBuiltinFunctions = do
+    let tests =
+            [ ("len(\"\")", Right 0),
+              ("len(\"four\")", Right 4),
+              ("len(\"hello world\")", Right 11),
+              ("len(1)", Left "argument to `len` not supported, got IntegerType"),
+              ("len(\"one\", \"two\")", Left "wrong number of arguments. got=2, want=1")
+            ]
+
+    forM_ tests $ \(input, output) -> do
+        it "can apply builtins" $ do
+            result <- testEval input
+            case output of
+                Right n -> testIntegerObject n result
+                Left s -> case result of
+                    Left err -> err `shouldBe` s
+                    Right _ -> expectationFailure $ printf "Expected error, got %s" (inspect result)
+
+testArrayExpressions = do
+    let input = "[1, 2 * 2, 3 + 3]"
+
+    it "evaluates arrays" $ do
+        result <- testEval input
+        case result of
+            Right (O.Array elements) -> do
+                length elements `shouldBe` 3
+                testIntegerObject 1 (Right $ head elements)
+                testIntegerObject 4 (Right $ elements !! 1)
+                testIntegerObject 6 (Right $ elements !! 2)
+            Right o -> expectationFailure $ printf "Expected array object, got %s" (O.inspect o)
+            Left err -> expectationFailure $ printf "Got error %s" err
+
+testIndexExpressions = do
+    let tests =
+            [ ("[1, 2, 3][0]", Just 1),
+              ("[1, 2, 3][1]", Just 2),
+              ("[1, 2, 3][2]", Just 3),
+              ("let i = 0; [1][i];", Just 1),
+              ("[1, 2, 3][1 + 1];", Just 3),
+              ("let myArray = [1, 2, 3]; myArray[2];", Just 3),
+              ("let myArray = [1, 2, 3]; myArray[0] + myArray[1] + myArray[2];", Just 6),
+              ("let myArray = [1, 2, 3]; let i = myArray[0]; myArray[i]", Just 2),
+              ("[1, 2, 3][3]", Nothing),
+              ("[1, 2, 3][-1]", Nothing)
+            ]
+
+    forM_ tests $ \(input, output) -> it "evaluates index expression" $ do
+        result <- testEval input
+        case output of
+            Just n -> testIntegerObject n result
+            Nothing -> testNullObject result
