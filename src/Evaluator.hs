@@ -91,7 +91,7 @@ applyFunction builtin@(O.Builtin {}) args = B.runBuiltin builtin args
 applyFunction o _ = throwError $ printf "not a function: %s" (O.inspect o)
 
 extendEnvironment :: O.EnvironmentRef -> [N.Identifier] -> [O.Object] -> IO O.EnvironmentRef
-extendEnvironment (O.EnvRef env) params args = do
+extendEnvironment env params args = do
     let funcEnv = Map.fromList (zip (map show params) args)
     O.EnvRef <$> newIORef (O.Env funcEnv (Just env))
 

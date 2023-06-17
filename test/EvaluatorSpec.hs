@@ -9,7 +9,7 @@ import qualified Evaluator as E
 import qualified Lexer as T
 import qualified Object as O
 import qualified Parser as P
-import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, runIO, shouldBe)
+import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
 import Text.Printf (printf)
 
 spec :: Spec
@@ -64,7 +64,6 @@ testEvalIntegerExpression = do
             ]
 
     forM_ tests $ \(input, output) -> do
-        env <- runIO $ newIORef (O.Env Map.empty Nothing)
         it "should evaluate integer expressions" $ testEval input >>= testIntegerObject output
 
 testBooleanObject :: Bool -> E.ProgramOutput -> Expectation

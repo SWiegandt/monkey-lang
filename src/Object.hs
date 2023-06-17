@@ -8,7 +8,7 @@ import qualified Data.Map as Map
 import qualified Nodes as N
 import Text.Printf (printf)
 
-data Environment = Env (Map.Map String Object) (Maybe (IORef Environment))
+data Environment = Env (Map.Map String Object) (Maybe EnvironmentRef)
 
 type ProgramState = StateT EnvironmentRef (ExceptT String IO)
 
@@ -19,7 +19,7 @@ insert key value (Env e o) = Env (Map.insert key value e) o
 Env e o !? s = case e Map.!? s of
     just@(Just _) -> return just
     _ -> case o of
-        Just ref -> readIORef ref >>= (!? s)
+        Just (EnvRef ref) -> readIORef ref >>= (!? s)
         _ -> return Nothing
 
 newtype EnvironmentRef = EnvRef {unRef :: IORef Environment}
