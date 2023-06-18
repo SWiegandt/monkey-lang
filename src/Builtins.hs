@@ -18,52 +18,57 @@ builtins =
           ("last", last'),
           ("rest", rest),
           ("push", push),
+          ("add", add),
           ("puts", puts)
         ]
 
 checkArgumentLength :: O.Object -> [O.Object] -> O.ProgramState O.Object
-checkArgumentLength f@(O.Builtin (O.BuiltinFunc _ n _ _)) args
+checkArgumentLength f@(O.Builtin _ n _ (O.BuiltinFunc _)) args
     | n == -1 || n == length args = liftEither $ Right f
     | otherwise = throwError $ printf "wrong number of arguments. got=%s, want=%s" (show $ length args) (show n)
 
 checkArgumentTypes :: O.Object -> [O.Object] -> O.ProgramState O.Object
-checkArgumentTypes f@(O.Builtin (O.BuiltinFunc _ _ types _)) args
-    | and $ zipWith (\tpe arg -> Nothing `elem` tpe || Just (O.otype arg) `elem` tpe) types args = liftEither $ Right f
+checkArgumentTypes f@(O.Builtin _ _ types (O.BuiltinFunc _)) args
+    | and $ zipWith (\tpe arg -> null tpe || O.otype arg `elem` tpe) types args = liftEither $ Right f
     | otherwise = throwError $ printf "argument to `len` not supported, got %s" (show . O.otype $ head args)
 
 runBuiltin :: O.Object -> [O.Object] -> O.ProgramState O.Object
-runBuiltin f@(O.Builtin (O.BuiltinFunc _ _ _ impl)) args = do
+runBuiltin f@(O.Builtin _ _ _ (O.BuiltinFunc impl)) args = do
     checkArgumentLength f args
     checkArgumentTypes f args
-    liftIO $ impl args
+    impl args
 
-mkBuiltin :: String -> Int -> [[Maybe O.ObjectType]] -> ([O.Object] -> IO O.Object) -> O.Object
-mkBuiltin name argc argTypes impl = O.Builtin $ O.BuiltinFunc name argc argTypes impl
+mkBuiltin :: String -> Int -> [[O.ObjectType]] -> ([O.Object] -> O.ProgramState O.Object) -> O.Object
+mkBuiltin name argc argTypes impl = O.Builtin name argc argTypes $ O.BuiltinFunc impl
 
-len = mkBuiltin "len" 1 [[Just O.StringType, Just O.ArrayType]] (return . impl)
+len = mkBuiltin "len" 1 [[O.StringType, O.ArrayType]] (return . impl)
     where
         impl [O.String str] = O.Int $ genericLength str
         impl [O.Array arr] = O.Int $ genericLength arr
 
-first = mkBuiltin "first" 1 [[Just O.ArrayType]] (return . impl)
+first = mkBuiltin "first" 1 [[O.ArrayType]] (return . impl)
     where
         impl [O.Array []] = O.Null
         impl [O.Array (e : _)] = e
 
-last' = mkBuiltin "last" 1 [[Just O.ArrayType]] (return . impl)
+last' = mkBuiltin "last" 1 [[O.ArrayType]] (return . impl)
     where
         impl [O.Array []] = O.Null
         impl [O.Array elements] = last elements
 
-rest = mkBuiltin "rest" 1 [[Just O.ArrayType]] (return . impl)
+rest = mkBuiltin "rest" 1 [[O.ArrayType]] (return . impl)
     where
         impl [O.Array []] = O.Null
         impl [O.Array elements] = O.Array $ tail elements
 
-push = mkBuiltin "push" 2 [[Just O.ArrayType], [Nothing]] (return . impl)
+push = mkBuiltin "push" 2 [[O.ArrayType], []] (return . impl)
     where
         impl [O.Array elements, o] = O.Array $ elements ++ [o]
 
-puts = mkBuiltin "puts" (-1) [[Nothing]] impl
+add = mkBuiltin "add" 3 [[O.HashType], [O.IntegerType, O.BooleanType, O.StringType], []] (return . impl)
     where
-        impl os = mapM_ (putStrLn . O.inspect) os >> return O.Null
+        impl [O.Hash map, key, value] = O.Hash $ Map.insert key value map
+
+puts = mkBuiltin "puts" (-1) [[]] impl
+    where
+        impl os = liftIO (mapM_ (putStrLn . O.inspect) os) >> return O.Null

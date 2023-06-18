@@ -30,10 +30,10 @@ instance Eq EnvironmentRef where
 instance Ord EnvironmentRef where
     compare l r = EQ
 
-data BuiltinFunc = BuiltinFunc String Int [[Maybe ObjectType]] ([Object] -> IO Object)
+newtype BuiltinFunc = BuiltinFunc ([Object] -> ProgramState Object)
 
 instance Eq BuiltinFunc where
-    BuiltinFunc leftName _ _ _ == BuiltinFunc rightName _ _ _ = leftName == rightName
+    _ == _ = True
 
 instance Ord BuiltinFunc where
     compare l r = EQ
@@ -48,7 +48,7 @@ data ObjectType
     | BuiltinType
     | ArrayType
     | HashType
-    deriving (Show, Eq)
+    deriving (Show, Eq, Ord)
 
 data Object
     = Int Integer
@@ -57,7 +57,7 @@ data Object
     | Null
     | Return Object
     | Function [N.Identifier] N.Block EnvironmentRef
-    | Builtin BuiltinFunc
+    | Builtin String Int [[ObjectType]] BuiltinFunc
     | Array [Object]
     | Hash (Map.Map Object Object)
     deriving (Eq, Ord)
