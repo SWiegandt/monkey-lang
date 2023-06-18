@@ -1,7 +1,7 @@
 module Main where
 
 import Control.Monad.Except (runExceptT)
-import Control.Monad.State (StateT (runStateT))
+import Control.Monad.State.Strict (StateT (runStateT))
 import qualified Evaluator as E
 import Lexer (runLexer)
 import qualified Object as O

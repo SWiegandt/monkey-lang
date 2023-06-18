@@ -4,7 +4,7 @@ import Control.Monad (void)
 import Control.Monad.Error.Class (handleError)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
-import Control.Monad.State (StateT (runStateT))
+import Control.Monad.State.Strict (StateT (runStateT))
 import qualified Evaluator as E
 import qualified Lexer as L
 import qualified Object as O

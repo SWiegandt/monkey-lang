@@ -1,7 +1,7 @@
 module Nodes where
 
 import Data.List (intercalate)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Text.Printf (printf)
 import qualified Tokens as T
 

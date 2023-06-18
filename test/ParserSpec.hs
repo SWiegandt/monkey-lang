@@ -3,9 +3,9 @@
 module ParserSpec (spec) where
 
 import Control.Monad (forM_, void, when)
-import Control.Monad.State (MonadTrans (lift))
+import Control.Monad.State.Strict (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Lexer (runLexer)
 import qualified Nodes as N
 import Parser (runParser)

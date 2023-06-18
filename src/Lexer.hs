@@ -3,7 +3,7 @@
 module Lexer (runLexer) where
 
 import Control.Applicative ((<|>))
-import Control.Monad.State (MonadState (get, put), State, evalState, modify)
+import Control.Monad.State.Strict (MonadState (get, put), State, evalState, modify)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.Maybe (fromMaybe)

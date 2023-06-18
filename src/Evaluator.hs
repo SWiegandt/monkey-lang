@@ -1,15 +1,13 @@
-{-# LANGUAGE BangPatterns #-}
-
 module Evaluator where
 
 import qualified Builtins as B
 import Control.Applicative ((<|>))
 import Control.Monad (forM, unless)
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.State (MonadIO (liftIO), MonadState (get, put), gets)
+import Control.Monad.State.Strict (MonadIO (liftIO), MonadState (get, put), gets)
 import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (genericLength)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
 import qualified Nodes as N
 import qualified Object as O
@@ -105,7 +103,7 @@ evalPrefixExpression "-" obj = evalMinusPrefixOperatorExpression obj
 evalPrefixExpression s obj = throwError $ printf "unknown operator: %s%s" s (show $ O.otype obj)
 
 evalBangOperatorExpression :: O.Object -> O.ProgramState O.Object
-evalBangOperatorExpression (O.Bool !b) = return $ O.Bool (not b)
+evalBangOperatorExpression (O.Bool b) = return $ O.Bool (not b)
 evalBangOperatorExpression O.Null = return $ O.Bool True
 evalBangOperatorExpression _ = return $ O.Bool False
 
@@ -127,18 +125,18 @@ evalGeneralInfixExpression l op r =
         else throwError $ printf "unknown operator: %s %s %s" (show $ O.otype l) op (show $ O.otype r)
 
 evalIntegerInfixExpression :: O.Object -> String -> O.Object -> O.ProgramState O.Object
-evalIntegerInfixExpression (O.Int !n) "+" (O.Int !m) = return $ O.Int (n + m)
-evalIntegerInfixExpression (O.Int !n) "-" (O.Int !m) = return $ O.Int (n - m)
-evalIntegerInfixExpression (O.Int !n) "*" (O.Int !m) = return $ O.Int (n * m)
-evalIntegerInfixExpression (O.Int !n) "/" (O.Int !m) = return $ O.Int (n `div` m)
-evalIntegerInfixExpression (O.Int !n) "<" (O.Int !m) = return $ O.Bool (n < m)
-evalIntegerInfixExpression (O.Int !n) ">" (O.Int !m) = return $ O.Bool (n > m)
-evalIntegerInfixExpression (O.Int !n) "==" (O.Int !m) = return $ O.Bool (n == m)
-evalIntegerInfixExpression (O.Int !n) "!=" (O.Int !m) = return $ O.Bool (n /= m)
+evalIntegerInfixExpression (O.Int n) "+" (O.Int m) = return $ O.Int (n + m)
+evalIntegerInfixExpression (O.Int n) "-" (O.Int m) = return $ O.Int (n - m)
+evalIntegerInfixExpression (O.Int n) "*" (O.Int m) = return $ O.Int (n * m)
+evalIntegerInfixExpression (O.Int n) "/" (O.Int m) = return $ O.Int (n `div` m)
+evalIntegerInfixExpression (O.Int n) "<" (O.Int m) = return $ O.Bool (n < m)
+evalIntegerInfixExpression (O.Int n) ">" (O.Int m) = return $ O.Bool (n > m)
+evalIntegerInfixExpression (O.Int n) "==" (O.Int m) = return $ O.Bool (n == m)
+evalIntegerInfixExpression (O.Int n) "!=" (O.Int m) = return $ O.Bool (n /= m)
 evalIntegerInfixExpression l op r = evalGeneralInfixExpression l op r
 
 evalStringInfixExpression :: O.Object -> String -> O.Object -> O.ProgramState O.Object
-evalStringInfixExpression (O.String !l) "+" (O.String !r) = return $ O.String (l ++ r)
+evalStringInfixExpression (O.String l) "+" (O.String r) = return $ O.String (l ++ r)
 evalStringInfixExpression l op r = evalGeneralInfixExpression l op r
 
 evalIfExpression :: N.Expression -> N.Block -> Maybe N.Block -> O.ProgramState O.Object

@@ -2,9 +2,9 @@ module Util where
 
 import Control.Monad (void)
 import Control.Monad.Except (runExceptT)
-import Control.Monad.State (StateT (runStateT))
+import Control.Monad.State.Strict (StateT (runStateT))
 import Data.IORef (newIORef)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Evaluator as E
 import Lexer (runLexer)
 import qualified Object as O

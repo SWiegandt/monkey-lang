@@ -1,10 +1,10 @@
 module Object where
 
 import Control.Monad.Except (ExceptT)
-import Control.Monad.State (StateT)
+import Control.Monad.State.Strict (StateT)
 import Data.IORef (IORef, readIORef)
 import Data.List (intercalate)
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import qualified Nodes as N
 import Text.Printf (printf)
 
@@ -51,9 +51,9 @@ data ObjectType
     deriving (Show, Eq, Ord)
 
 data Object
-    = Int Integer
-    | Bool Bool
-    | String String
+    = Int !Integer
+    | Bool !Bool
+    | String !String
     | Null
     | Return Object
     | Function [N.Identifier] N.Block EnvironmentRef

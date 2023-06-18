@@ -2,11 +2,11 @@ module Parser where
 
 import Control.Applicative (Applicative (liftA2))
 import Control.Monad (void, when)
-import Control.Monad.State (MonadState (put), MonadTrans (lift), State, evalState, gets)
+import Control.Monad.State.Strict (MonadState (put), MonadTrans (lift), State, evalState, gets)
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
 import Control.Monad.Trans.Writer (WriterT (runWriterT), tell)
 import Data.Bifunctor (Bifunctor (first))
-import qualified Data.Map as Map
+import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust, listToMaybe)
 import qualified Nodes as N
 import Text.Printf (printf)
