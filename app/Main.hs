@@ -24,7 +24,11 @@ main = do
 runFile :: O.EnvironmentRef -> String -> IO ()
 runFile env file = do
     contents <- readFile file
-    void . runExceptT . handleError logError . runFile $ contents
+    void . runExceptT . handleError logError . run $ contents
     where
-        runFile = void . (`runStateT` env) . E.eval . fst . P.runParser . L.runLexer
+        run code =
+            let (parsed, log) = P.runParser . L.runLexer $ code
+             in if null log
+                    then void . (`runStateT` env) . E.eval $ parsed
+                    else mapM_ logError log
         logError err = liftIO $ putStrLn ("Error: " ++ err)
