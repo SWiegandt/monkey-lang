@@ -1,13 +1,13 @@
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module Builtins where
+module Monkey.Language.Builtins where
 
 import Control.Monad.Error.Class (liftEither)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.IO.Class (liftIO)
 import Data.List (genericLength)
 import qualified Data.Map.Strict as Map
-import qualified Object as O
+import qualified Monkey.Eval.Object as O
 import Text.Printf (printf)
 
 builtins :: Map.Map String O.Object

@@ -1,13 +1,13 @@
 {-# LANGUAGE TupleSections #-}
 
-module Lexer (runLexer) where
+module Monkey.Frontend.Lexer (runLexer) where
 
 import Control.Applicative ((<|>))
 import Control.Monad.State.Strict (MonadState (get, put), State, evalState, modify)
 import Data.Bifunctor (Bifunctor (first))
 import Data.Char (isAlpha, isDigit, isSpace)
 import Data.Maybe (fromMaybe)
-import qualified Tokens as T
+import qualified Monkey.AST.Tokens as T
 
 skipWhitespace :: String -> String
 skipWhitespace = dropWhile isSpace

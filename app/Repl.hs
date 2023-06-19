@@ -2,14 +2,14 @@ module Main where
 
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State.Strict (StateT (runStateT))
-import qualified Evaluator as E
-import Lexer (runLexer)
-import qualified Object as O
-import Parser (runParser)
+import qualified Monkey.Eval.Evaluator as E
+import qualified Monkey.Eval.Object as O
+import Monkey.Frontend.Lexer (runLexer)
+import Monkey.Frontend.Parser (runParser)
+import qualified Monkey.Util as U
 import System.Environment (getEnv)
 import System.IO (hFlush, stdout)
 import Text.Printf (printf)
-import qualified Util as U
 
 repl :: O.EnvironmentRef -> IO ()
 repl env = do

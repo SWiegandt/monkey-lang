@@ -1,17 +1,18 @@
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 {-# OPTIONS_GHC -Wno-overlapping-patterns #-}
 
-module ParserSpec (spec) where
+module Monkey.Frontend.ParserSpec (spec) where
 
 import Control.Monad (forM_, void, when)
 import Control.Monad.State.Strict (MonadTrans (lift))
 import Control.Monad.Trans.Maybe (MaybeT (runMaybeT), hoistMaybe)
 import qualified Data.Map.Strict as Map
-import Lexer (runLexer)
-import qualified Nodes as N
-import Parser (runParser)
+import qualified Monkey.AST.Nodes as N
+import qualified Monkey.AST.Tokens as T
+import Monkey.Frontend.Lexer (runLexer)
+import Monkey.Frontend.Parser (runParser)
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe, shouldSatisfy)
 import Text.Printf (printf)
-import qualified Tokens as T
 
 spec :: Spec
 spec = do
@@ -42,13 +43,13 @@ testLetStatements = do
         outputs = [("x", IntExpectation 5), ("y", BooleanExpectation True), ("foobar", StringExpectation "y")]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement@(N.LetStmt _ _ value) : _), log) = runParser . runLexer $ input
         checkErrorLog log
         it "should have one statement" $ length stmts `shouldBe` 1
         testLetStatement statement (fst output)
-        it "has correct value" $ testLiteralExpression (N.letValue statement) (snd output)
+        it "has correct value" $ testLiteralExpression value (snd output)
 
-testLetStatement statement name = do
+testLetStatement statement@(N.LetStmt _ (N.Identifier token name) _) expected = do
     it "should have tokenLiteral 'let'" $ N.tokenLiteral statement `shouldBe` "let"
 
     it "should be a let statement" $ case statement of
@@ -56,19 +57,19 @@ testLetStatement statement name = do
         _ -> expectationFailure $ printf "Expected LetStmt, got %s" (show statement)
 
     it (printf "should have correct name %s" name) $ do
-        N.identValue (N.letName statement) `shouldBe` name
-        N.tokenLiteral (N.letName statement) `shouldBe` name
+        name `shouldBe` expected
+        T.literal token `shouldBe` expected
 
 testReturnStatements = do
     let inputs = ["return 5;", "return true;", "return foobar;"]
         outputs = [IntExpectation 5, BooleanExpectation True, StringExpectation "foobar"]
 
     forM_ (zip inputs outputs) $ \(input, output) -> do
-        let (N.Program stmts@(statement : _), log) = runParser . runLexer $ input
+        let (N.Program stmts@(statement@(N.ReturnStmt _ value) : _), log) = runParser . runLexer $ input
         checkErrorLog log
         it "should have one statement" $ length stmts `shouldBe` 1
         testReturnStatement statement
-        it "has correct value" $ testLiteralExpression (N.returnValue statement) output
+        it "has correct value" $ testLiteralExpression value output
 
 testReturnStatement statement = do
     it "should have tokenLiteral 'return'" $ N.tokenLiteral statement `shouldBe` "return"
@@ -81,10 +82,9 @@ testShow = do
     let program =
             N.Program
                 [ N.LetStmt
-                    { N.letToken = T.Token T.Let "let",
-                      N.letName = N.Identifier (T.Token T.Ident "myVar") "myVar",
-                      N.letValue = N.IdentifierExpression (N.Identifier (T.Token T.Ident "anotherVar") "anotherVar")
-                    }
+                    (T.Token T.Let "let")
+                    (N.Identifier (T.Token T.Ident "myVar") "myVar")
+                    (N.IdentifierExpression (N.Identifier (T.Token T.Ident "anotherVar") "anotherVar"))
                 ]
 
     it "stringifies statements" $ do

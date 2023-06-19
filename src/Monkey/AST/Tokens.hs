@@ -1,4 +1,4 @@
-module Tokens (TokenType (..), Token (..)) where
+module Monkey.AST.Tokens (TokenType (..), Token (..)) where
 
 data TokenType
     = Illegal

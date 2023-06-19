@@ -1,24 +1,20 @@
-module Nodes where
+module Monkey.AST.Nodes where
 
 import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
+import qualified Monkey.AST.Tokens as T
 import Text.Printf (printf)
-import qualified Tokens as T
 
 class Node a where
     tokenLiteral :: a -> String
 
-data Identifier = Identifier
-    { identToken :: T.Token,
-      identValue :: String
-    }
-    deriving (Eq, Ord)
+data Identifier = Identifier T.Token String deriving (Eq, Ord)
 
 instance Node Identifier where
-    tokenLiteral = T.literal . identToken
+    tokenLiteral (Identifier token _) = T.literal token
 
 instance Show Identifier where
-    show = identValue
+    show (Identifier _ value) = value
 
 data Expression
     = IdentifierExpression Identifier
@@ -78,19 +74,9 @@ instance Show Block where
     show (Block stmts) = concatMap show stmts
 
 data Statement
-    = LetStmt
-        { letToken :: T.Token,
-          letName :: Identifier,
-          letValue :: Expression
-        }
-    | ReturnStmt
-        { returnToken :: T.Token,
-          returnValue :: Expression
-        }
-    | ExpressionStmt
-        { expressionToken :: T.Token,
-          expression :: Expression
-        }
+    = LetStmt T.Token Identifier Expression
+    | ReturnStmt T.Token Expression
+    | ExpressionStmt T.Token Expression
     deriving (Eq, Ord)
 
 instance Node Statement where

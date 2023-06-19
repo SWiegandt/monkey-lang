@@ -1,8 +1,8 @@
-module LexerSpec (spec) where
+module Monkey.Frontend.LexerSpec (spec) where
 
-import Lexer (runLexer)
+import qualified Monkey.AST.Tokens as T
+import Monkey.Frontend.Lexer (runLexer)
 import Test.Hspec (Expectation, Spec, describe, it, shouldBe)
-import qualified Tokens as T
 
 spec :: Spec
 spec = do

@@ -1,6 +1,5 @@
-module Evaluator where
+module Monkey.Eval.Evaluator where
 
-import qualified Builtins as B
 import Control.Applicative ((<|>))
 import Control.Monad (forM, unless)
 import Control.Monad.Except (MonadError (throwError))
@@ -9,8 +8,9 @@ import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List (genericLength)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe)
-import qualified Nodes as N
-import qualified Object as O
+import qualified Monkey.AST.Nodes as N
+import qualified Monkey.Eval.Object as O
+import qualified Monkey.Language.Builtins as B
 import Text.Printf (printf)
 
 type ProgramOutput = Either String O.Object

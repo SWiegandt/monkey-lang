@@ -1,11 +1,11 @@
-module Object where
+module Monkey.Eval.Object where
 
 import Control.Monad.Except (ExceptT)
 import Control.Monad.State.Strict (StateT)
 import Data.IORef (IORef, readIORef)
 import Data.List (intercalate)
 import qualified Data.Map.Strict as Map
-import qualified Nodes as N
+import qualified Monkey.AST.Nodes as N
 import Text.Printf (printf)
 
 data Environment = Env (Map.Map String Object) (Maybe EnvironmentRef)

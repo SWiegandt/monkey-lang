@@ -1,4 +1,4 @@
-module Parser where
+module Monkey.Frontend.Parser where
 
 import Control.Applicative (Applicative (liftA2))
 import Control.Monad (void, when)
@@ -8,10 +8,10 @@ import Control.Monad.Trans.Writer (WriterT (runWriterT), tell)
 import Data.Bifunctor (Bifunctor (first))
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromJust, listToMaybe)
-import qualified Nodes as N
+import qualified Monkey.AST.Nodes as N
+import qualified Monkey.AST.Tokens as T
 import Text.Printf (printf)
 import Text.Read (readMaybe)
-import qualified Tokens as T
 
 type Parser = WriterT [String] (State (T.Token, [T.Token]))
 

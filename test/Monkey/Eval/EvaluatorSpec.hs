@@ -1,14 +1,14 @@
-module EvaluatorSpec where
+module Monkey.Eval.EvaluatorSpec where
 
 import Control.Monad (forM_, when)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.State.Strict (evalStateT)
 import Data.IORef (newIORef)
 import qualified Data.Map.Strict as Map
-import qualified Evaluator as E
-import qualified Lexer as T
-import qualified Object as O
-import qualified Parser as P
+import qualified Monkey.Eval.Evaluator as E
+import qualified Monkey.Eval.Object as O
+import qualified Monkey.Frontend.Lexer as T
+import qualified Monkey.Frontend.Parser as P
 import Test.Hspec (Expectation, Spec, describe, expectationFailure, it, shouldBe)
 import Text.Printf (printf)
 

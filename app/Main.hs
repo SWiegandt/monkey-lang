@@ -5,12 +5,12 @@ import Control.Monad.Error.Class (handleError)
 import Control.Monad.Except (runExceptT)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.State.Strict (StateT (runStateT))
-import qualified Evaluator as E
-import qualified Lexer as L
-import qualified Object as O
-import qualified Parser as P
+import qualified Monkey.Eval.Evaluator as E
+import qualified Monkey.Eval.Object as O
+import qualified Monkey.Frontend.Lexer as L
+import qualified Monkey.Frontend.Parser as P
+import qualified Monkey.Util as U
 import System.Environment (getArgs)
-import qualified Util as U
 
 main :: IO ()
 main = do
