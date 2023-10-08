@@ -19,3 +19,7 @@ loadStdLib env = do
 
 createEnv :: IO O.EnvironmentRef
 createEnv = O.EnvRef <$> newIORef (O.Env Map.empty Nothing)
+
+note :: e -> Maybe a -> Either e a
+note e Nothing = Left e
+note _ (Just a) = Right a

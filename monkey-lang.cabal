@@ -26,6 +26,8 @@ library
   exposed-modules:
     Monkey.AST.Nodes
     Monkey.AST.Tokens
+    Monkey.Backend.Code
+    Monkey.Backend.Compiler
     Monkey.Eval.Evaluator
     Monkey.Eval.Object
     Monkey.Frontend.Lexer
@@ -39,7 +41,9 @@ library
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
   build-depends:
-    , base          ^>=4.16.4.0
+    , base          ^>=4.17.2.0
+    , binary        ==0.8.9.1
+    , bytestring    ==0.12.0.1
     , containers    ==0.6.7
     , mtl           ==2.3.1
     , transformers  ==0.6.1.0
@@ -52,7 +56,7 @@ test-suite test-monkey
   type:               exitcode-stdio-1.0
   main-is:            Spec.hs
   build-depends:
-    , base          ^>=4.16.4.0
+    , base          ^>=4.17.2.0
     , containers    ==0.6.7
     , hspec         ==2.11.1
     , monkey-lang
@@ -61,6 +65,8 @@ test-suite test-monkey
 
   hs-source-dirs:     test
   other-modules:
+    Monkey.Backend.CodeSpec
+    Monkey.Backend.CompilerSpec
     Monkey.Eval.EvaluatorSpec
     Monkey.Frontend.LexerSpec
     Monkey.Frontend.ParserSpec
@@ -78,7 +84,7 @@ executable monkey
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
   build-depends:
-    , base         ^>=4.16.4.0
+    , base         ^>=4.17.2.0
     , containers   ==0.6.7
     , monkey-lang
     , mtl          ==2.3.1
@@ -96,7 +102,7 @@ executable monkey-repl
   -- LANGUAGE extensions used by modules in this package.
   -- other-extensions:
   build-depends:
-    , base         ^>=4.16.4.0
+    , base         ^>=4.17.2.0
     , containers   ==0.6.7
     , monkey-lang
     , mtl          ==2.3.1
