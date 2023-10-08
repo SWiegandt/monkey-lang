@@ -23,9 +23,11 @@ testIntegerArithmetic = do
     forM_ tests $ \(input, constants, instructions) -> do
         it "should compile arithmetic statements" $ do
             let (program, _) = runParser . runLexer $ input
-            let Bytecode i o = compile program
-            testInstructions instructions i
-            testConstants constants o
+            case compile 0 program of
+                Right (Bytecode i o) -> do
+                    testInstructions instructions i
+                    testConstants constants o
+                Left error -> expectationFailure error
 
 testInstructions :: [Instructions] -> Instructions -> Expectation
 testInstructions expected actual = actual `shouldBe` Instructions (concatMap (\(Instructions words) -> words) expected)

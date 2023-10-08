@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Monkey.Backend.Code where
 
 import Control.Arrow (Arrow (second))
@@ -12,7 +14,7 @@ import Prelude hiding (lookup, read)
 
 newtype Opcode = Opcode {op :: Word8} deriving (Eq)
 
-newtype Instructions = Instructions {words :: [Word8]} deriving (Eq)
+newtype Instructions = Instructions {words :: [Word8]} deriving (Eq, Semigroup, Monoid)
 
 instance Show Instructions where
     show = read
